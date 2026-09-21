@@ -8,10 +8,11 @@ can select it.
 
 ## The active bundle
 
-Bundle 12: live prompt 4, report prompt 10, rubric 1, report schema 2.
+Bundle 13: live prompt 5, report prompt 11, rubric 1, report schema 2.
 
 | Bundle | Introduced |
 |---|---|
+| 13 | The interviewer's watch prompts and the interim review carry a projection of the deterministic evidence ledger, holding digests, counts and closed enumerations, in place of the raw editor, and the interviewer calls `read_editor` when it needs the code itself. |
 | 12 | The interviewer records the step the candidate just finished before moving to the next, and the evidence reply that first ticks a later step names the earlier steps of the same framework still without evidence, so the candidate's step list fills in order rather than all at once. |
 | 11 | Candidate-authored test evidence includes the bounded input beside its result, so the interviewer and report reviewer can identify the case. |
 | 10 | Hints remain qualitative context for candidate independence rather than automatic numeric communication-score deductions. |
