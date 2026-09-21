@@ -58,7 +58,7 @@ fn prompt_golden_digest_matches_versions() {
     // the failure worth catching is a version bumped with the golden left
     // alone, which a digest comparison on its own reads as fine.
     let recorded_versions = (5, 11);
-    let recorded_digest = "06ca905606948d07a86d9fa3aaf143717186ea086768e5539b52d4a3696f3a4b";
+    let recorded_digest = "f249e997cd1442e7e50ca0d94622db97d1f018285d7a05e065179671c45a03f4";
 
     assert_eq!(
         (LIVE_PROMPT_VERSION, REPORT_PROMPT_VERSION),
@@ -213,6 +213,7 @@ fn report_brief_states_the_hint_rung() {
         elapsed_min: 12.0,
         test_summary: "",
         practice_level: Some("intern"),
+        evidence: "",
     });
     assert!(prompt.contains("candidate reached hint rung 2 of 3"));
     assert!(prompt.contains("1 hint was volunteered rather than requested"));
@@ -233,6 +234,7 @@ fn report_prompt_names_the_practice_level() {
         elapsed_min: 12.0,
         test_summary: "",
         practice_level: Some("intern"),
+        evidence: "",
     };
     let selected = report_prompt(base);
     assert!(selected.contains("candidate practiced for intern"));
@@ -327,6 +329,7 @@ fn live_instructions_pose_the_variant_and_hold_no_source_or_walkthrough() {
         elapsed_min: 30.0,
         test_summary: "",
         practice_level: None,
+        evidence: "",
     });
     assert!(report.contains("Reference notes on approaches"));
     assert!(report.contains("never name the published problem, its title, LeetCode"));

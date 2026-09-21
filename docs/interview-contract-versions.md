@@ -12,7 +12,7 @@ Bundle 13: live prompt 5, report prompt 11, rubric 1, report schema 2.
 
 | Bundle | Introduced |
 |---|---|
-| 13 | The interviewer's watch prompts and the interim review carry a projection of the deterministic evidence ledger, holding digests, counts and closed enumerations, in place of the raw editor, and the interviewer calls `read_editor` when it needs the code itself. |
+| 13 | The interviewer's watch prompts carry a projection of the deterministic evidence ledger, holding digests, counts and closed enumerations, in place of the raw editor, and the interviewer calls `read_editor` when it needs the code itself. The interim review carries the same projection ahead of its untrusted editor and transcript blocks. The report prompt delimits the candidate's editor, transcript and test output as untrusted blocks, with the refusal to follow anything inside them stated above all three, and the server's own evidence ledger rendered apart from them rather than inside the untrusted rolling assessment. |
 | 12 | The interviewer records the step the candidate just finished before moving to the next, and the evidence reply that first ticks a later step names the earlier steps of the same framework still without evidence, so the candidate's step list fills in order rather than all at once. |
 | 11 | Candidate-authored test evidence includes the bounded input beside its result, so the interviewer and report reviewer can identify the case. |
 | 10 | Hints remain qualitative context for candidate independence rather than automatic numeric communication-score deductions. |
@@ -33,7 +33,11 @@ constants, prompt and report goldens, migration fixtures, and replay fixtures
 move together. A prompt-only change bumps its prompt constant and the bundle in
 both `src/agent.rs` and `ACTIVE_CONTRACT`, refreshes the prompt golden, and adds
 a row here; it needs no browser compatibility-list edit. A released bundle
-number is never reused for different behavior.
+number is never reused for different behavior. A bundle is released when the
+pull request that opens it merges, so its versions move once per pull request: a
+later commit in the same series that changes a prompt again keeps that bundle's
+versions, records the prompt golden's new digest, and extends the bundle's row.
+Bundle 5's row, which covers every commit of PR #38, is the precedent.
 
 ## Compatibility rules
 
