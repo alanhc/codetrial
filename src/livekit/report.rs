@@ -10,8 +10,9 @@
 use ::livekit::prelude::{DataPacket, Room};
 
 use crate::agent::{
-    ReportPromptInput, RuntimeState, final_report, format_test_run, framework_evidence_json,
-    interview_contract_json, report_prompt, rolling_assessment, transcript_for_report,
+    ModelInputKind, ReportPromptInput, RuntimeState, final_report, format_test_run,
+    framework_evidence_json, interview_contract_json, report_prompt, rolling_assessment,
+    transcript_for_report,
 };
 use crate::gemini::{generate_report, redact_api_key};
 use crate::runtime::{RuntimeBootstrap, TOPIC_REPORT};
@@ -21,7 +22,7 @@ use super::{REPORT_TIMEOUT, browser_packet};
 pub(super) async fn publish_report(
     room: &Room,
     boot: &RuntimeBootstrap<'_>,
-    state: &RuntimeState,
+    state: &mut RuntimeState,
     reason: &str,
     elapsed_min: f64,
     api_key: &str,
@@ -34,19 +35,18 @@ pub(super) async fn publish_report(
 
 async fn report_packet(
     boot: &RuntimeBootstrap<'_>,
-    state: &RuntimeState,
+    state: &mut RuntimeState,
     reason: &str,
     elapsed_min: f64,
     api_key: &str,
 ) -> Result<DataPacket, Box<dyn std::error::Error + Send + Sync>> {
+    let prompt = report_prompt_text(boot, state, elapsed_min);
+    state
+        .evidence_ledger
+        .record_model_input(ModelInputKind::FinalReport, &prompt);
     let mut report = match tokio::time::timeout(
         REPORT_TIMEOUT,
-        generate_report(
-            api_key,
-            boot.report_model,
-            &report_prompt_text(boot, state, elapsed_min),
-            boot.problem,
-        ),
+        generate_report(api_key, boot.report_model, &prompt, boot.problem),
     )
     .await
     {
