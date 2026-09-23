@@ -764,8 +764,12 @@ pub fn live_tool_declarations() -> Value {
                 "type": "OBJECT",
                 "properties": {
                     "phase": { "type": "STRING", "enum": ["repeat", "example", "algorithm", "coding", "test", "optimizations", "situation", "task", "action", "result"] },
-                    "source": { "type": "STRING", "enum": ["candidate_speech", "editor_snapshot", "test_event", "session_timing"] },
-                    "kind": { "type": "STRING", "enum": ["observed", "inferred", "skipped"] },
+
+                    // No `session_timing` or `skipped`: a step the platform
+                    // prevented is closed by the platform, in
+                    // `skip_unassessed_star`, and never by the model.
+                    "source": { "type": "STRING", "enum": ["candidate_speech", "editor_snapshot", "test_event"] },
+                    "kind": { "type": "STRING", "enum": ["observed", "inferred"] },
                     "confidence": { "type": "INTEGER", "minimum": 0, "maximum": 100 },
                     "summary": { "type": "STRING", "description": "Short evidence-grounded summary without scores or private rubric text." }
                 },

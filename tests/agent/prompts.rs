@@ -58,7 +58,7 @@ fn prompt_golden_digest_matches_versions() {
     // the failure worth catching is a version bumped with the golden left
     // alone, which a digest comparison on its own reads as fine.
     let recorded_versions = (6, 12);
-    let recorded_digest = "3cc28c2855a8af672ecee4775e1d3af1b4baa09b2d258dd34fd71264f5f22a28";
+    let recorded_digest = "d6dad496e38a83cdbad2a4d5c23020d0b84dba3aa12186da8c00a5fe90afd890";
 
     assert_eq!(
         (LIVE_PROMPT_VERSION, REPORT_PROMPT_VERSION),
@@ -171,8 +171,11 @@ fn interview_prompt_pins_reacto_star_and_safety_boundaries() {
     ] {
         assert!(prompt.contains(safeguard), "missing safeguard: {safeguard}");
     }
-    assert!(time_warning().contains("source `session_timing`, kind `skipped`"));
-    assert!(wrap_up("candidate_ended").contains("source `session_timing`, kind `skipped`"));
+
+    // The platform closes the unasked STAR steps itself, so neither prompt
+    // spends a tool round trip on them before the candidate hears anything.
+    assert!(!time_warning().contains("record_framework_evidence"));
+    assert!(!wrap_up("candidate_ended").contains("record_framework_evidence"));
 
     let public_reactions = [
         greeting(problem),

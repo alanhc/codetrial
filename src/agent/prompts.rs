@@ -119,14 +119,14 @@ pub fn build_instructions_for_plan(
     let coding_minutes = duration_min.saturating_sub(behavioral_minutes);
     let round_policy = match interview_loop {
         InterviewLoop::CodingOnly => format!(
-            "ROUND PLAN — coding only. The REACTO coding round owns all {duration_min} minutes. Never ask a behavioral question. STAR remains unassessed and must be marked skipped at session end."
+            "ROUND PLAN — coding only. The REACTO coding round owns all {duration_min} minutes. Never ask a behavioral question; the platform marks STAR skipped."
         ),
         InterviewLoop::CodingBehavioral => format!(
             "ROUND PLAN — two rounds: the REACTO coding round has {coding_minutes} minutes and the STAR behavioral reserve has {behavioral_minutes} minutes. Do not transition from coding until a trusted [SYSTEM EVENT] confirms the Test and Optimizations evidence gate passed. Once the behavioral round starts, ask exactly one question, use only prior candidate answers and trusted evidence for follow-ups, never repeat a question, and never return to coding."
         ),
     };
     let star_round_policy = if interview_loop == InterviewLoop::CodingOnly {
-        "STAR BEHAVIORAL ROUND — not configured. Never ask a behavioral or experience question in this session. At session end, record all STAR phases as skipped with source `session_timing`; do not score absence as candidate failure.".to_string()
+        "STAR BEHAVIORAL ROUND — not configured. Never ask a behavioral or experience question in this session.".to_string()
     } else {
         star_policy().to_string()
     };
@@ -291,9 +291,9 @@ TOOLS
   hint you realise you gave. Either way hint usage is scored fairly.
 - `record_framework_evidence`: call it only after candidate speech, an editor
   snapshot, or a test event supports one REACTO/STAR phase. Use `observed` for a
-  direct statement/action, `inferred` only when completion follows indirectly,
-  and `skipped` with `session_timing` only for STAR phases the platform rules
-  prevent you from asking. Never pair `session_timing` with another kind.
+  direct statement/action and `inferred` only when completion follows
+  indirectly. The platform itself marks the STAR phases it prevents you from
+  asking as skipped.
   Coding, Test and Optimizations are about code the candidate has written: call
   `read_editor` first and record them only when it shows that code. A plan the
   candidate describes is Algorithm, and the call is refused while the editor
@@ -642,7 +642,7 @@ pub fn proactive_review(evidence: &str, excerpt: Option<&str>) -> String {
 }
 
 pub fn time_warning() -> String {
-    "[SYSTEM EVENT] The interview timer has reached the five-minute warning. Briefly and naturally warn the candidate and give this convergence order: finish a testable core, run or describe the highest-value tests, then state time and space complexity. Two short sentences maximum. Do not start a behavioral question now. For each STAR phase not already evidenced, silently call `record_framework_evidence` once with source `session_timing`, kind `skipped`, confidence 100, and a short summary that the five-minute cutoff prevented assessment. Do not speak those calls or the checklist.".to_string()
+    "[SYSTEM EVENT] The interview timer has reached the five-minute warning. Briefly and naturally warn the candidate and give this convergence order: finish a testable core, run or describe the highest-value tests, then state time and space complexity. Two short sentences maximum. Do not start a behavioral question now.".to_string()
 }
 
 const NOTHING_RECORDED: &str = "(nothing recorded yet)";
@@ -664,7 +664,7 @@ pub fn wrap_up(reason: &str) -> String {
         _ => "the candidate chose to end the session",
     };
     format!(
-        "[SYSTEM EVENT] The interview is over because {why}. Do not ask a new coding or behavioral question and do not try to fill a missing interview step. For each STAR phase not already evidenced, silently call `record_framework_evidence` once with source `session_timing`, kind `skipped`, confidence 100, and a short summary that the session ended before assessment. In at most two short sentences, thank the candidate warmly and tell them their written performance report is being prepared and will appear on screen in a moment. Do not speak the evidence calls, scores, checklist, or hiring decision."
+        "[SYSTEM EVENT] The interview is over because {why}. Do not ask a new coding or behavioral question and do not try to fill a missing interview step. In at most two short sentences, thank the candidate warmly and tell them their written performance report is being prepared and will appear on screen in a moment. Do not speak scores, the checklist, or the hiring decision."
     )
 }
 
