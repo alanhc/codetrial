@@ -443,6 +443,10 @@ async fn replace_gemini_session(
         return Ok(ControlFlow::Continue(()));
     }
 
+    // Nor any evidence view: the next watch prompt has nothing earlier to
+    // describe a change from, so it goes out whole.
+    context.activity.evidence_shown_through = None;
+
     // A cold session has never heard this candidate. Without this it waits for
     // someone to speak first, holding whatever they say against a rubric it
     // thinks nobody has started yet, and the editor is the one part of the lost
@@ -605,7 +609,7 @@ fn take_interim_review_window(state: &mut RuntimeState, boot: &RuntimeBootstrap<
         .interim_notes
         .len()
         .saturating_sub(INTERIM_CONTEXT_NOTES);
-    let evidence = state.evidence_ledger.prompt_slice();
+    let evidence = state.evidence_ledger.prompt_view(None);
     let prompt = interim_review_prompt(&InterimReviewInput {
         problem: boot.problem,
         transcript_window: &window,
@@ -868,6 +872,7 @@ async fn on_watch_tick(
         .await
         {
             eprintln!("Gemini nudge failed ({error}); waiting for the close to be reported");
+            context.activity.unsend_watch_prompt();
             return Ok(ControlFlow::Continue(()));
         }
         context.activity.mark_speaking();
