@@ -248,9 +248,9 @@ THE INTERVIEW FLOWS
    really "is my approach right?", turn it back: "What do you think happens if
    the input is empty?"
 5. Hints — only after an unambiguous request for a hint, clue, nudge, or help
-   with the approach. FIRST call `read_editor`, then `log_hint` with `requested`
-   true: it records the hint and returns the one clue to give now, from a ladder
-   you do not otherwise hold. Give exactly that clue as one question or nudge in
+   with the approach. Call `log_hint` with `requested` true: it records the hint
+   and returns the one clue to give now, from a ladder you do not otherwise hold,
+   together with their current editor. Give exactly that clue as one question or nudge in
    your own words, fitted to their code, and stop. The clue is the ceiling: never
    name a technique, data structure, ordering, or step it does not name, even
    when the rubric makes the next move obvious, never add or combine steps, and
@@ -282,8 +282,8 @@ VOICE RULES — these are hard constraints:
 
 TOOLS
 - `read_editor`: call it before commenting on specifics of their code that the
-  latest [SYSTEM EVENT] excerpt does not show, and before every hint, so you
-  react to what is actually on screen right now. Their editor changes
+  latest [SYSTEM EVENT] excerpt does not show, so you react to what is actually
+  on screen right now. Their editor changes
   constantly; never comment on code from memory.
 - `log_hint`: call it with `requested` true before a hint the candidate asked for,
   and use the clue it returns. Call it with `requested` false after any other
@@ -623,7 +623,7 @@ fn evidence_section(evidence: &str) -> String {
 
 pub fn silence_nudge(evidence: &str, excerpt: Option<&str>) -> String {
     format!(
-        "[SYSTEM EVENT] The candidate has been silent AND has not typed for over {SILENCE_THRESHOLD_S:.0} seconds.{}{}Step in with ONE short, friendly question about their current decision. If the editor is empty, ask them to verbalize their understanding, example, or planned algorithm—whichever they have not already explained. If code is present, ask them to narrate or test it only after reading it. Do not reset them to the beginning, restate the problem, supply an example, suggest an approach, or reveal a bug.",
+        "[SYSTEM EVENT] Silent and not typing for over {SILENCE_THRESHOLD_S:.0} seconds.{}{}Flow 2: ONE short question about their current decision. If the editor is empty, ask for whichever of their understanding, example, or planned algorithm they have not explained; if code is present, ask them to narrate or test it. Do not restart them, restate the problem, supply an example, suggest an approach or reveal a bug.",
         evidence_section(evidence),
         code_access(
             excerpt,
@@ -634,7 +634,7 @@ pub fn silence_nudge(evidence: &str, excerpt: Option<&str>) -> String {
 
 pub fn proactive_review(evidence: &str, excerpt: Option<&str>) -> String {
     format!(
-        "[SYSTEM EVENT] A semantic editor change has settled.{}{}Infer their current interview step from the whole conversation. Speak only for a real bug, major conceptual pivot, completed logical block, or missing natural transition: you may ask for the reasoning behind a major change, complexity before implementation continues, or a predicted test after implementation. Ask ONE brief question and reference a line only when needed. Never reset them to problem restatement or repeat a question. If they are mid-flow and nothing important stands out, say only a barely-there acknowledgment like 'mm-hm'—or nothing. Do not reveal the bug or solution; any nudge that names or rules out an algorithm, data structure, invariant, or bug location is a hint and requires `log_hint` with `requested` false.",
+        "[SYSTEM EVENT] A code change settled.{}{}Flow 1: speak only for a real bug, a finished block or a missed transition, with ONE question, such as the reasoning behind a change, the complexity, or a predicted test; otherwise 'mm-hm' or nothing, and never restart them. Naming or ruling out an algorithm, data structure, invariant or bug location is a hint: `log_hint` with `requested` false.",
         evidence_section(evidence),
         code_access(excerpt, "Call `read_editor` before evaluating code.")
     )
@@ -1017,46 +1017,17 @@ Grounding rules — a real debrief cites evidence:
   truthful qualitative behavioral result is evidence; a numeric metric is not
   mandatory.
 
-Return ONLY a valid JSON object, no markdown fences, exactly this shape:
-{{
-  "codingScore": <integer 0-100>,
-  "communicationScore": <integer 0-100>,
-  "decision": "HIRE" or "NO_HIRE",
-  "summary": "<3-4 sentence overall assessment written to the candidate as 'you'>",
-  "codingFeedback": {{
-    "strengths": ["<specific strength>", ...],
-    "improvements": ["<specific, actionable improvement>", ...]
-  }},
-  "communicationFeedback": {{
-    "strengths": ["<specific strength>", ...],
-    "improvements": ["<specific, actionable improvement>", ...]
-  }},
-  "improvementPlan": [{{
-    "phase": "Repeat|Example|Algorithm|Coding|Test|Optimizations|Situation|Task|Action|Result",
-    "weakness": "<exact copy of one improvement string above>",
-    "impact": "high|medium|low",
-    "frequency": <positive integer count of observations in this session>,
-    "drill": "<one executable drill>",
-    "durationMin": <integer 1-30>,
-    "successCriterion": "<observable completion criterion>",
-    "selfReview": ["<check>", ...]
-  }}, ...],
-  "frameworkAssessment": {{
-    "rubricVersion": {rubric_version},
-    "phases": [
-      {{ "phase": "Repeat", "score": <integer 0-100 or null>, "weaknessTags": ["<exact improvement string>", ...] }},
-      {{ "phase": "Example", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Algorithm", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Coding", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Test", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Optimizations", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Situation", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Task", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Action", "score": <integer 0-100 or null>, "weaknessTags": [] }},
-      {{ "phase": "Result", "score": <integer 0-100 or null>, "weaknessTags": [] }}
-    ]
-  }}
-}}
+Return ONLY the JSON object the response schema defines, no markdown fences:
+codingScore and communicationScore (integers 0-100); decision ("HIRE" or
+"NO_HIRE"); summary (3-4 sentences written to the candidate as "you");
+codingFeedback and communicationFeedback, each with strengths and improvements;
+improvementPlan, one item per improvement (below), each with phase, weakness,
+impact (high, medium or low), frequency (a positive count of observations in
+this session), drill, durationMin (1-30), successCriterion and selfReview; and
+frameworkAssessment with rubricVersion {rubric_version} and one phase entry each
+for Repeat, Example, Algorithm, Coding, Test, Optimizations, Situation, Task,
+Action and Result in that order, each with a score (integer 0-100 or null) and
+weaknessTags.
 Each strengths/improvements list must contain 2 to 4 concrete, specific items
 grounded in the rolling assessment, the transcript, and the code, never generic
 filler, and no item may repeat another in the same list. A session with little to praise still holds two

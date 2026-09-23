@@ -522,7 +522,7 @@ fn runtime_activity_emits_periodic_prompts_and_updates_gates() {
 
     let prompt = activity.watch_prompt(&state, now).unwrap();
 
-    assert!(prompt.contains("silent AND has not typed"));
+    assert!(prompt.contains("Silent and not typing"));
 
     // The code reaches the prompt only inside the fenced excerpt, as the change
     // since the last review, which for the first one is the whole buffer.
@@ -535,17 +535,17 @@ fn runtime_activity_emits_periodic_prompts_and_updates_gates() {
     activity.last_agent_speech = now - Duration::from_secs(5);
     activity.last_review = now - Duration::from_secs(31);
     activity.last_interjection = now - Duration::from_secs(46);
-    state.evidence_ledger.code.semantic_revision = 1;
+    state.evidence_ledger.code.substantive_revision = 1;
 
     let prompt = activity.watch_prompt(&state, now).unwrap();
 
-    assert!(prompt.contains("semantic editor change has settled"));
+    assert!(prompt.contains("A code change settled"));
 
     // A silence nudge does not move the baseline, so the review still shows the
     // buffer; the review does, so the next one shows only what changed after.
     let fence = position(&prompt, "BEGIN UNTRUSTED EDITOR (");
     assert!(position(&prompt, "def two_sum") > fence, "{prompt}");
-    assert_eq!(activity.semantic_revision_at_last_review, 1);
+    assert_eq!(activity.substantive_revision_at_last_review, 1);
     assert_eq!(activity.code_at_last_review, state.code);
     assert!(activity.watch_prompt(&state, now).is_none());
 
@@ -617,7 +617,7 @@ fn recent_typing_holds_off_the_periodic_review() {
     state
         .code
         .push_str("\nseen = {}\nfor i, n in enumerate(nums):\n    pass");
-    state.evidence_ledger.code.semantic_revision = 1;
+    state.evidence_ledger.code.substantive_revision = 1;
 
     activity.last_code_change = now - CODE_SETTLE + Duration::from_secs(1);
     assert!(
@@ -631,7 +631,7 @@ fn recent_typing_holds_off_the_periodic_review() {
     let prompt = activity
         .watch_prompt(&state, now)
         .expect("an edit exactly CODE_SETTLE old has settled; the review may take the floor");
-    assert!(prompt.contains("semantic editor change has settled"));
+    assert!(prompt.contains("A code change settled"));
 }
 
 #[test]
@@ -1221,7 +1221,7 @@ fn a_real_operator_fix_arms_the_proactive_review() {
     let prompt = activity
         .watch_prompt(&state, now)
         .expect("an off-by-one fix is a semantic edit");
-    assert!(prompt.contains("semantic editor change has settled"));
+    assert!(prompt.contains("A code change settled"));
 
     // The fixed line is inside the fenced excerpt, numbered as `read_editor`
     // numbers it, so the review needs no read to see it.
@@ -1254,7 +1254,7 @@ fn an_unsent_review_leaves_its_change_for_the_next_one() {
         .expect("the first review");
     let markers = |activity: &RuntimeActivity| {
         (
-            activity.semantic_revision_at_last_review,
+            activity.substantive_revision_at_last_review,
             activity.code_at_last_review.clone(),
             activity.evidence_shown.clone(),
         )
@@ -1331,4 +1331,61 @@ fn a_watch_prompt_sends_only_the_evidence_lines_that_changed() {
         cold.contains("tests: browser-reported claims (unverified): 1 of 2 passing"),
         "{cold}"
     );
+}
+
+/// A review is armed by a change worth one, in code that parses: a rename
+/// alone is not one, and a buffer mid-edit that does not parse holds the review
+/// until the next change that does.
+#[test]
+fn a_rename_or_code_that_does_not_parse_holds_the_review() {
+    let now = Instant::now();
+    let mut activity = RuntimeActivity::new(now);
+    let mut state = RuntimeState::default();
+    edit(&mut state, 50, "def f():\n    pass\n");
+    edit(
+        &mut state,
+        100,
+        "def f():\n    total = 1\n    return total\n",
+    );
+    ready_for_review(&mut activity, now);
+    activity
+        .watch_prompt(&state, now)
+        .expect("the first review");
+
+    edit(
+        &mut state,
+        200,
+        "def f():\n    count = 1\n    return count\n",
+    );
+    ready_for_review(&mut activity, now);
+    assert!(
+        activity.watch_prompt(&state, now).is_none(),
+        "a rename armed a review"
+    );
+
+    edit(
+        &mut state,
+        300,
+        "def f():\n    count = 2\n    return count\n",
+    );
+    edit(
+        &mut state,
+        400,
+        "def f():\n    count = 2\n    return count +\n",
+    );
+    ready_for_review(&mut activity, now);
+    assert!(
+        activity.watch_prompt(&state, now).is_none(),
+        "a review fired on code that does not parse"
+    );
+
+    edit(
+        &mut state,
+        500,
+        "def f():\n    count = 2\n    return count + 1\n",
+    );
+    ready_for_review(&mut activity, now);
+    activity
+        .watch_prompt(&state, now)
+        .expect("the change that parses arms it");
 }

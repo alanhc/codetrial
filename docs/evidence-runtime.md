@@ -82,9 +82,15 @@ A watch prompt sends only the lines that differ from the ones the last watch
 prompt left the same Live session holding, and no evidence heading at all when
 none do; a cold replacement session, which holds nothing, gets every line, and a
 prompt the socket refused leaves the lines it carried to be sent again. The
-simulated session above now spends 7,551 tokens on reviews against `main`'s
-6,776, with the code in every review and one review more, which the semantic
-gate fires. The code itself reaches a watch prompt fenced as the candidate's
+simulated session above spent 7,551 tokens on reviews against `main`'s 6,776,
+with the code in every review and one review more, which the semantic gate
+fired.
+
+A proactive review is armed by `substantive_revision`, the program changes that
+were not renames alone, and only while the buffer parses: a review of a rename
+or of a half-typed line is an "mm-hm" at best, and the next change that parses
+arms it again. `semantic_revision` still counts every program change for the
+evidence it reports. The code itself reaches a watch prompt fenced as the candidate's
 untrusted text and numbered as `read_editor` numbers it: the whole buffer up to
 eighty lines and 4,000 bytes, and past that the lines that changed since the
 last review with three lines of context, at most forty lines of 160 characters.
