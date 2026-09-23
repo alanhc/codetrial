@@ -92,10 +92,19 @@ were not renames alone, and only while the buffer parses: a review of a rename
 or of a half-typed line is an "mm-hm" at best, and the next change that parses
 arms it again. `semantic_revision` still counts every program change for the
 evidence it reports. The code itself reaches a watch prompt fenced as the candidate's
-untrusted text and numbered as `read_editor` numbers it: the whole buffer up to
-eighty lines and 4,000 bytes, and past that the lines that changed since the
-last review with three lines of context, at most forty lines of 160 characters.
-The interviewer is told to call `read_editor` only for code it leaves out.
+untrusted text and numbered as `read_editor` numbers it, without padding and
+without the blank lines at its end: the whole buffer up to eighty lines and
+4,000 bytes, and past that the lines that changed with three lines of context,
+at most forty lines of 160 characters. The change is measured from the code the
+model was last shown, by any carrier: a watch prompt, a test reaction, which
+carries the change as well, `read_editor`, a requested hint or a cold briefing.
+With no change the prompt says the editor is unchanged rather than sending it
+again or sending the model to read it, and the interviewer is told to call
+`read_editor` only for code nothing has shown it. `read_editor`, the hint reply
+and the cold briefing number the whole buffer up to 32,000 bytes, and a cut
+names the line `read_editor` takes as `fromLine` to show the rest. A watch
+evidence line that was shown and has since gone is sent as its key with
+`none`.
 Sending only the changed lines was tried first: in a small sample against the
 Live model the interviewer read the editor on every review anyway, reaching
 first audio in about 950 ms against 565 ms when the whole buffer came with the
@@ -134,9 +143,13 @@ events, and measures what the session handed the models: bytes and a count for
 the watch prompts, the conversational turns (greeting, cold restart, the reply
 a data event asks for, and the wrap-up), the interim reviews, the final report
 prompt, the `read_editor` responses and every other tool answer, refusals
-included. Every model-bound text falls into exactly one of them. They are bytes
+included; an HTTP prompt is counted with the system instruction it is sent
+behind. Every model-bound text falls into exactly one of them. They are bytes
 rather than tokens because the tokenizer belongs to the provider, they are
-written to stderr once at the end of a session, and they are deliberately
+written to stderr once at the end of a session beside the `live_usage` line,
+which sums the token counts the Live session reported for each of its turns
+(each billed on the whole context it ran in), and each report and interim call
+logs its own reported usage, and they are deliberately
 absent from the prompt: a model handed its own byte count is being told
 something no interview should turn on. Beside them, every model-bound text is
 folded in order into one SHA-256, so two runs of a session sent the same prompts
