@@ -536,6 +536,7 @@ fn runtime_activity_emits_periodic_prompts_and_updates_gates() {
     activity.last_review = now - Duration::from_secs(31);
     activity.last_interjection = now - Duration::from_secs(46);
     state.evidence_ledger.code.substantive_revision = 1;
+    state.evidence_ledger.code.parser_observation = Some(crate::agent::CodeObservation::Parsed);
 
     let prompt = activity.watch_prompt(&state, now).unwrap();
 
@@ -618,6 +619,7 @@ fn recent_typing_holds_off_the_periodic_review() {
         .code
         .push_str("\nseen = {}\nfor i, n in enumerate(nums):\n    pass");
     state.evidence_ledger.code.substantive_revision = 1;
+    state.evidence_ledger.code.parser_observation = Some(crate::agent::CodeObservation::Parsed);
 
     activity.last_code_change = now - CODE_SETTLE + Duration::from_secs(1);
     assert!(
@@ -1388,4 +1390,18 @@ fn a_rename_or_code_that_does_not_parse_holds_the_review() {
     activity
         .watch_prompt(&state, now)
         .expect("the change that parses arms it");
+
+    // Nor a buffer past what the parser reads, which has no parse to trust: the
+    // change before it is still unreviewed when it lands.
+    edit(
+        &mut state,
+        600,
+        "def f():\n    count = 3\n    return count + 1\n",
+    );
+    edit(&mut state, 700, &"x = 1\n".repeat(20_000));
+    ready_for_review(&mut activity, now);
+    assert!(
+        activity.watch_prompt(&state, now).is_none(),
+        "a review fired on a buffer that was never parsed"
+    );
 }

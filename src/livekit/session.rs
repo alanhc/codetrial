@@ -438,7 +438,8 @@ fn tool_response(state: &mut RuntimeState, call: &GeminiFunctionCall) -> serde_j
             // The editor comes with the clue, so a requested hint is one tool
             // call rather than `read_editor` and then this: the model is told
             // to fit the clue to their code, and asking for the code first was
-            // a whole round trip before it could say anything.
+            // a whole round trip before it could say anything. The fences are
+            // the ones `read_editor` answers with.
             if requested {
                 result.push_str("\n\n");
                 result.push_str(&read_editor_text(

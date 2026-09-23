@@ -330,9 +330,23 @@ fn a_requested_hint_returns_the_editor_with_its_clue() {
     let asked = execute_tool_call(&mut state, &call(true));
     let asked = asked["result"].as_str().unwrap();
     assert!(asked.contains("first rung"), "{asked}");
-    assert!(asked.contains("Editor language: python"), "{asked}");
     assert!(asked.contains("  2|     return []"), "{asked}");
-    assert!(position_of(asked, "first rung") < position_of(asked, "Editor language"));
+    assert!(position_of(asked, "first rung") < position_of(asked, "BEGIN UNTRUSTED EDITOR"));
+
+    // The candidate's text is fenced: everything they wrote sits between the
+    // markers the instructions tell the model never to take orders from, and
+    // the platform's timer comes after both fences, as the last sentence.
+    let (open, close) = (
+        position_of(asked, "BEGIN UNTRUSTED EDITOR (python)\n"),
+        position_of(asked, "\nEND UNTRUSTED EDITOR"),
+    );
+    assert!(open < position_of(asked, "  2|     return []"));
+    assert!(position_of(asked, "  2|     return []") < close);
+    assert!(close < position_of(asked, "END UNTRUSTED TEST RUN"));
+    assert!(
+        asked.ends_with("minutes remain on the candidate's countdown."),
+        "{asked}"
+    );
 
     let volunteered = execute_tool_call(&mut state, &call(false));
     assert!(
@@ -395,7 +409,7 @@ fn execute_tool_call_reads_editor_and_tracks_hints() {
         editor["result"]
             .as_str()
             .unwrap()
-            .contains("Editor language: python")
+            .contains("BEGIN UNTRUSTED EDITOR (python)")
     );
     assert!(
         editor["result"]

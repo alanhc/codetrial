@@ -67,7 +67,8 @@ session that holds the conversation, so it gets the tests, diagnostics, hints,
 phases and session state; the interim review gets the code history, tests,
 diagnostics, last change, hints and session state; the report, whose own
 sections carry the last run, the hint counts, the framework evidence and the
-transcript, gets the code history, the test history and the session state. No
+transcript, gets the code history, the test history, the diagnostics and the
+session state. No
 entry, digest, timestamp or node fact reaches any of them. The ledger itself was
 the prompt once, as JSON capped at 6,000 bytes; counted with Gemini's tokenizer
 that was 1,000 to 2,700 tokens a prompt, more than half of them SHA-256 digests,

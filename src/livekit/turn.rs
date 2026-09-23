@@ -284,7 +284,7 @@ impl RuntimeActivity {
             significant_change: state.evidence_ledger.code.substantive_revision
                 > self.substantive_revision_at_last_review
                 && state.evidence_ledger.code.parser_observation
-                    != Some(crate::agent::CodeObservation::SyntaxInvalid),
+                    == Some(crate::agent::CodeObservation::Parsed),
         });
         if decision.update_last_nudge {
             self.last_nudge = now;

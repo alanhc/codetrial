@@ -499,7 +499,7 @@ fn runtime_helpers_match_frozen_fixture() {
             18,
         ),
         format!(
-            "Editor language: python\n{}\n\n{}\n\n{}",
+            "BEGIN UNTRUSTED EDITOR (python)\n{}\nEND UNTRUSTED EDITOR\nBEGIN UNTRUSTED TEST RUN\n{}\nEND UNTRUSTED TEST RUN\n{}",
             numbered("def two_sum(nums, target):\n    return [0, 1]"),
             expected["testRuns"]["readEditorLatest"].as_str().unwrap(),
             timer_line(18)
