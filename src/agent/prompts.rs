@@ -294,10 +294,9 @@ TOOLS
   direct statement/action and `inferred` only when completion follows
   indirectly. The platform itself marks the STAR phases it prevents you from
   asking as skipped.
-  Coding, Test and Optimizations are about code the candidate has written: call
-  `read_editor` first and record them only when it shows that code. A plan the
-  candidate describes is Algorithm, and the call is refused while the editor
-  holds only the starter.
+  Coding, Test and Optimizations are about code the candidate has written, as
+  the editor you were last shown has it; a plan they describe is Algorithm,
+  and the call is refused while the editor holds only the starter.
   The candidate's step list is ticked from these calls alone, so when you move
   to the next step, first record the step the candidate just finished.
   This is the rolling evaluation the final report is written from: record every
