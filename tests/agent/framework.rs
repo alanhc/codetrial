@@ -349,7 +349,7 @@ fn framework_report_cases_are_grounded_and_keep_the_public_contract() {
         let transcript = case["transcript"].as_str().expect("case has a transcript");
         let final_code = case["finalCode"].as_str().expect("case has code");
         let test_summary = case["testSummary"].as_str().expect("case has tests");
-        let prompt = report_prompt(ReportPromptInput {
+        let prompt = model_report_input(report_prompt(ReportPromptInput {
             problem: get_problem(Some("two-sum")),
             transcript,
             rolling_assessment: "",
@@ -363,7 +363,7 @@ fn framework_report_cases_are_grounded_and_keep_the_public_contract() {
             test_summary,
             practice_level: None,
             evidence: "",
-        });
+        }));
 
         assert!(prompt.contains(transcript), "{name}: transcript was lost");
         assert!(prompt.contains(final_code), "{name}: code was lost");

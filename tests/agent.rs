@@ -211,6 +211,8 @@ fn prompt_samples() -> Value {
             already_recorded: "",
             evidence: &empty,
         }),
+        "interimSystem": interim_system_instruction(),
+        "reportSystem": report_system_instruction(),
         "testsPass": test_results_reaction("3/3 passed", true, None),
         "testsFail": test_results_reaction(
             "2/3 passed",
@@ -391,6 +393,11 @@ fn exact_fixture_keys(value: &Value, expected: &[&str], path: &str) {
 /// Spends the budget rather than winding `started_at` back: `Instant` counts
 /// from boot, and subtracting the default thirty-seven minute budget panics
 /// outright on a machine that has been up for less than that.
+/// What the report model reads: the system instruction and the brief.
+fn model_report_input(brief: String) -> String {
+    format!("{}\n\n{brief}", report_system_instruction())
+}
+
 fn past_the_coding_round(state: &mut RuntimeState) {
     state.coding_minutes = 0;
 }
@@ -443,7 +450,7 @@ fn evaluation_reaction(case: &Value, state: &mut RuntimeState) -> String {
             .generate_reply
             .expect("round gate produces a reaction")
         }
-        "report" => report_prompt(ReportPromptInput {
+        "report" => model_report_input(report_prompt(ReportPromptInput {
             problem: get_problem(Some("two-sum")),
             transcript: case["transcript"].as_str().expect("transcript is text"),
             rolling_assessment: "",
@@ -457,7 +464,7 @@ fn evaluation_reaction(case: &Value, state: &mut RuntimeState) -> String {
             test_summary: "No trusted server-side test was available.",
             practice_level: None,
             evidence: "",
-        }),
+        })),
         other => panic!("unknown reaction kind {other}"),
     }
 }
