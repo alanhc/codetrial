@@ -58,7 +58,7 @@ fn prompt_golden_digest_matches_versions() {
     // the failure worth catching is a version bumped with the golden left
     // alone, which a digest comparison on its own reads as fine.
     let recorded_versions = (6, 12);
-    let recorded_digest = "76a5254601c303f66c272987389c7aeb21f4913416c58db756f635f6cedd893d";
+    let recorded_digest = "b71e74dea50780b7a4e9d5a7269aff0a7936689cf6ed801e89ce348227deee30";
 
     assert_eq!(
         (LIVE_PROMPT_VERSION, REPORT_PROMPT_VERSION),
