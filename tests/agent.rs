@@ -152,7 +152,9 @@ fn prompt_samples() -> Value {
     let empty = evidence_projection("empty");
     let early = evidence_projection("early");
     let working = evidence_projection("working");
-    let working_since = evidence_projection("workingSince");
+    let working_changed = evidence_projection("workingChanged");
+    let working_interim = evidence_projection("workingInterim");
+    let working_report = evidence_projection("workingReport");
     let excerpt = changed_excerpt(
         "python",
         "def two_sum(nums, target):\n    return []\n",
@@ -187,7 +189,7 @@ fn prompt_samples() -> Value {
         "silenceWorking": silence_nudge(&working, Some(&excerpt)),
         "coldRestart": cold_restart(&cold_state),
         "coldRestartEmpty": cold_restart(&RuntimeState::default()),
-        "review": proactive_review(&working_since, Some(&excerpt)),
+        "review": proactive_review(&working_changed, Some(&excerpt)),
         "reviewWithoutExcerpt": proactive_review(&working, None),
         "time": time_warning(),
         "wrapCandidate": wrap_up("candidate_ended"),
@@ -199,7 +201,7 @@ fn prompt_samples() -> Value {
             code: "seen = {}",
             language: "python",
             already_recorded: "Candidate restated the inputs and the return shape.",
-            evidence: &working,
+            evidence: &working_interim,
         }),
         "interimEmpty": interim_review_prompt(&InterimReviewInput {
             problem,
@@ -207,7 +209,7 @@ fn prompt_samples() -> Value {
             code: "",
             language: "python",
             already_recorded: "",
-            evidence: "{}",
+            evidence: &empty,
         }),
         "testsPass": test_results_reaction("3/3 passed", true),
         "testsFail": test_results_reaction("2/3 passed", false),
@@ -228,7 +230,7 @@ fn prompt_samples() -> Value {
             elapsed_min: 12.4,
             test_summary: "Latest test run: 2/3 cases passed.\n- CANDIDATE CASE empty input with input [[]]: got []",
             practice_level: None,
-            evidence: &working,
+            evidence: &working_report,
         }),
         "reportEmpty": report_prompt(ReportPromptInput {
             problem,

@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use crate::config::DEFAULT_MAX_INTERIM_REVIEWS;
 
 use crate::agent::{
-    RuntimeState, SpeakerTurn, TEST_REACTION_COOLDOWN_S, TimingInput, candidate_lines,
+    RuntimeState, SpeakerTurn, TEST_REACTION_COOLDOWN_S, TimingInput, ViewFor, candidate_lines,
     changed_excerpt, proactive_review, silence_nudge, timing_decision, unreviewed_from, with_timer,
 };
 
@@ -75,10 +75,12 @@ pub(super) struct RuntimeActivity {
     /// The buffer the last review saw, which the next one's excerpt is the
     /// change from. Source, so it stays here and never reaches the ledger.
     pub(super) code_at_last_review: String,
-    /// The last ledger sequence a watch prompt showed this Live session, so the
-    /// next one can say what arrived since. `None` on a session that has not
-    /// been shown one: a cold replacement has heard nothing before.
-    pub(super) evidence_shown_through: Option<u64>,
+    /// The evidence lines the last watch prompt of this Live session left the
+    /// model holding, so the next sends only the lines that differ. The session
+    /// keeps its earlier turns, and a line repeated unchanged every prompt was
+    /// paid for every prompt. `None` on a session shown none, which a cold
+    /// replacement is: it has heard nothing before, so it gets them all.
+    pub(super) evidence_shown: Option<Vec<String>>,
     /// What the last watch prompt moved. See [`Self::unsend_watch_prompt`].
     pub(super) unsent_watch: Option<UnsentWatch>,
     pub(super) floor: Floor,
@@ -144,7 +146,7 @@ impl RuntimeActivity {
                 .unwrap_or(now),
             semantic_revision_at_last_review: 0,
             code_at_last_review: String::new(),
-            evidence_shown_through: None,
+            evidence_shown: None,
             unsent_watch: None,
             floor: Floor::Listening,
             discarding_output: false,
@@ -289,9 +291,11 @@ impl RuntimeActivity {
             return None;
         }
         let excerpt = changed_excerpt(&state.language, &self.code_at_last_review, &state.code);
+        let lines = state.evidence_ledger.prompt_view(ViewFor::Watch);
+        let evidence = evidence_delta(self.evidence_shown.as_deref(), &lines);
         let mut unsent = UnsentWatch {
             review: None,
-            evidence_shown_through: self.evidence_shown_through,
+            evidence_shown: self.evidence_shown.replace(lines),
         };
         if decision.sync_code_at_last_review {
             unsent.review = Some((
@@ -313,10 +317,6 @@ impl RuntimeActivity {
         // where they are built instead, because neither touches the socket --
         // both are one-shot HTTP calls, and the interim prompt is handed to a
         // spawned task that never sees the ledger.
-        let evidence = state
-            .evidence_ledger
-            .prompt_view(self.evidence_shown_through);
-        self.evidence_shown_through = Some(state.evidence_ledger.last_sequence());
         self.unsent_watch = Some(unsent);
         let prompt = if decision.silence_nudge {
             silence_nudge(&evidence, excerpt.as_deref())
@@ -341,16 +341,40 @@ impl RuntimeActivity {
             self.semantic_revision_at_last_review = revision;
             self.code_at_last_review = code;
         }
-        self.evidence_shown_through = unsent.evidence_shown_through;
+        self.evidence_shown = unsent.evidence_shown;
     }
 }
 
-/// The review baselines and the evidence cursor as they were before a watch
+/// The watch evidence lines the model does not hold yet: every line that
+/// differs from the last ones shown, and `key: none` for a line that was shown
+/// and has since gone. A line vanishing said nothing, so a session flag that
+/// cleared stayed in the model's context as though it still held.
+fn evidence_delta(shown: Option<&[String]>, lines: &[String]) -> String {
+    let key = |line: &str| {
+        line.split_once(':')
+            .map_or(line, |(key, _)| key)
+            .to_string()
+    };
+    let mut delta = lines
+        .iter()
+        .filter(|line| shown.is_none_or(|shown| !shown.contains(line)))
+        .cloned()
+        .collect::<Vec<_>>();
+    let current = lines.iter().map(|line| key(line)).collect::<Vec<_>>();
+    for gone in shown.into_iter().flatten().map(|line| key(line)) {
+        if !current.contains(&gone) {
+            delta.push(format!("{gone}: none"));
+        }
+    }
+    delta.join("\n")
+}
+
+/// The review baselines and the evidence shown as they were before a watch
 /// prompt moved them: the revision and code together, when it was a review.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct UnsentWatch {
     review: Option<(u64, String)>,
-    evidence_shown_through: Option<u64>,
+    evidence_shown: Option<Vec<String>>,
 }
 
 /// What one interview accumulates, minus the two things the select loop borrows
