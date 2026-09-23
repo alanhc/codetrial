@@ -520,7 +520,7 @@ fn runtime_activity_emits_periodic_prompts_and_updates_gates() {
     activity.last_agent_speech = now - past_silence;
     activity.last_nudge = now - Duration::from_secs_f64(crate::agent::SILENCE_COOLDOWN_S + 1.0);
 
-    let prompt = activity.watch_prompt(&state, now).unwrap();
+    let prompt = activity.watch_prompt(&mut state, now).unwrap();
 
     assert!(prompt.contains("Silent and not typing"));
 
@@ -528,7 +528,7 @@ fn runtime_activity_emits_periodic_prompts_and_updates_gates() {
     // since the last review, which for the first one is the whole buffer.
     let fence = position(&prompt, "BEGIN UNTRUSTED EDITOR (");
     assert!(position(&prompt, "def two_sum") > fence, "{prompt}");
-    assert!(activity.watch_prompt(&state, now).is_none());
+    assert!(activity.watch_prompt(&mut state, now).is_none());
 
     activity.last_code_change = now - CODE_SETTLE - Duration::from_secs(1);
     activity.last_user_speech = now - Duration::from_secs(5);
@@ -538,17 +538,19 @@ fn runtime_activity_emits_periodic_prompts_and_updates_gates() {
     state.evidence_ledger.code.substantive_revision = 1;
     state.evidence_ledger.code.parser_observation = Some(crate::agent::CodeObservation::Parsed);
 
-    let prompt = activity.watch_prompt(&state, now).unwrap();
+    let prompt = activity.watch_prompt(&mut state, now).unwrap();
 
     assert!(prompt.contains("A code change settled"));
 
-    // A silence nudge does not move the baseline, so the review still shows the
-    // buffer; the review does, so the next one shows only what changed after.
-    let fence = position(&prompt, "BEGIN UNTRUSTED EDITOR (");
-    assert!(position(&prompt, "def two_sum") > fence, "{prompt}");
+    // The nudge already showed this buffer, so the review says it is unchanged
+    // rather than sending it again or sending the model to read it; only the
+    // review consumes the change that armed it.
+    assert!(!prompt.contains("BEGIN UNTRUSTED EDITOR"), "{prompt}");
+    assert!(prompt.contains("The editor is unchanged since you last saw it."));
+    assert!(!prompt.contains("read_editor"), "{prompt}");
     assert_eq!(activity.substantive_revision_at_last_review, 1);
-    assert_eq!(activity.code_at_last_review, state.code);
-    assert!(activity.watch_prompt(&state, now).is_none());
+    assert_eq!(state.code_shown, state.code);
+    assert!(activity.watch_prompt(&mut state, now).is_none());
 
     // No counter assertion here any more, and deliberately: a prompt is counted
     // where it is handed to the socket, so `watch_prompt` hands its caller a
@@ -623,7 +625,7 @@ fn recent_typing_holds_off_the_periodic_review() {
 
     activity.last_code_change = now - CODE_SETTLE + Duration::from_secs(1);
     assert!(
-        activity.watch_prompt(&state, now).is_none(),
+        activity.watch_prompt(&mut state, now).is_none(),
         "a candidate who typed a second ago is still working; the review must wait"
     );
 
@@ -631,7 +633,7 @@ fn recent_typing_holds_off_the_periodic_review() {
     // the boundary is only bracketed, and `<` reads the same as `<=`.
     activity.last_code_change = now - CODE_SETTLE;
     let prompt = activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("an edit exactly CODE_SETTLE old has settled; the review may take the floor");
     assert!(prompt.contains("A code change settled"));
 }
@@ -1210,7 +1212,7 @@ fn a_real_operator_fix_arms_the_proactive_review() {
     );
     ready(&mut activity);
     assert!(
-        activity.watch_prompt(&state, now).is_none(),
+        activity.watch_prompt(&mut state, now).is_none(),
         "a blank line is not something to interject about"
     );
 
@@ -1221,7 +1223,7 @@ fn a_real_operator_fix_arms_the_proactive_review() {
     );
     ready(&mut activity);
     let prompt = activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("an off-by-one fix is a semantic edit");
     assert!(prompt.contains("A code change settled"));
 
@@ -1244,7 +1246,7 @@ fn an_unsent_review_leaves_its_change_for_the_next_one() {
     let ready = |activity: &mut RuntimeActivity| ready_for_review(activity, now);
 
     // Nothing to undo before any prompt.
-    activity.unsend_watch_prompt();
+    activity.unsend_watch_prompt(&mut state);
     assert_eq!(activity.evidence_shown, None);
 
     // The first packet is the starter, which is not the candidate's edit.
@@ -1252,33 +1254,36 @@ fn an_unsent_review_leaves_its_change_for_the_next_one() {
     edit(&mut state, 100, "def f():\n    return 1\n");
     ready(&mut activity);
     activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("the first review");
-    let markers = |activity: &RuntimeActivity| {
+    let markers = |activity: &RuntimeActivity, state: &RuntimeState| {
         (
             activity.substantive_revision_at_last_review,
-            activity.code_at_last_review.clone(),
+            state.code_shown.clone(),
             activity.evidence_shown.clone(),
         )
     };
-    let seen = markers(&activity);
+    let seen = markers(&activity, &state);
 
+    // Run before the edit: the reaction to a run shows the code that changed,
+    // and this one has none to show, so it leaves the markers where they are.
+    run_tests(&mut state, 150, 1, 2);
+    assert_eq!(markers(&activity, &state), seen);
     edit(&mut state, 200, "def f():\n    return 2\n");
-    run_tests(&mut state, 250, 1, 2);
     ready(&mut activity);
     let failed = activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("the review that fails");
     let ran = "tests: browser-reported claims (unverified): 1 of 2 passing";
     assert!(failed.contains(ran), "{failed}");
-    assert_ne!(activity.code_at_last_review, seen.1);
-    activity.unsend_watch_prompt();
-    assert_eq!(markers(&activity), seen);
+    assert_ne!(state.code_shown, seen.1);
+    activity.unsend_watch_prompt(&mut state);
+    assert_eq!(markers(&activity, &state), seen);
 
     // The retry carries the edit the failed prompt did, measured from what the
     // model last saw.
     ready(&mut activity);
-    let retried = activity.watch_prompt(&state, now).expect("the retry");
+    let retried = activity.watch_prompt(&mut state, now).expect("the retry");
     assert!(position(&retried, "    return 2") > position(&retried, "BEGIN UNTRUSTED EDITOR ("));
     assert!(retried.contains(ran), "{retried}");
 }
@@ -1295,7 +1300,7 @@ fn a_watch_prompt_sends_only_the_evidence_lines_that_changed() {
     edit(&mut state, 100, "def f():\n    return 1\n");
     ready_for_review(&mut activity, now);
     let first = activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("the first review");
     assert!(
         first.contains("Deterministic session evidence:\ntests: not run\n"),
@@ -1304,7 +1309,9 @@ fn a_watch_prompt_sends_only_the_evidence_lines_that_changed() {
 
     edit(&mut state, 200, "def f():\n    return 2\n");
     ready_for_review(&mut activity, now);
-    let unchanged = activity.watch_prompt(&state, now).expect("a second review");
+    let unchanged = activity
+        .watch_prompt(&mut state, now)
+        .expect("a second review");
     assert!(
         !unchanged.contains("Deterministic session evidence"),
         "{unchanged}"
@@ -1314,7 +1321,9 @@ fn a_watch_prompt_sends_only_the_evidence_lines_that_changed() {
     edit(&mut state, 300, "def f():\n    return 3\n");
     run_tests(&mut state, 350, 1, 2);
     ready_for_review(&mut activity, now);
-    let tested = activity.watch_prompt(&state, now).expect("a third review");
+    let tested = activity
+        .watch_prompt(&mut state, now)
+        .expect("a third review");
     assert!(
         tested.contains(
             "Deterministic session evidence:\ntests: browser-reported claims (unverified): 1 of 2 passing"
@@ -1327,7 +1336,7 @@ fn a_watch_prompt_sends_only_the_evidence_lines_that_changed() {
     edit(&mut state, 400, "def f():\n    return 4\n");
     ready_for_review(&mut activity, now);
     let cold = activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("a review on a new session");
     assert!(
         cold.contains("tests: browser-reported claims (unverified): 1 of 2 passing"),
@@ -1351,7 +1360,7 @@ fn a_rename_or_code_that_does_not_parse_holds_the_review() {
     );
     ready_for_review(&mut activity, now);
     activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("the first review");
 
     edit(
@@ -1361,7 +1370,7 @@ fn a_rename_or_code_that_does_not_parse_holds_the_review() {
     );
     ready_for_review(&mut activity, now);
     assert!(
-        activity.watch_prompt(&state, now).is_none(),
+        activity.watch_prompt(&mut state, now).is_none(),
         "a rename armed a review"
     );
 
@@ -1377,7 +1386,7 @@ fn a_rename_or_code_that_does_not_parse_holds_the_review() {
     );
     ready_for_review(&mut activity, now);
     assert!(
-        activity.watch_prompt(&state, now).is_none(),
+        activity.watch_prompt(&mut state, now).is_none(),
         "a review fired on code that does not parse"
     );
 
@@ -1388,7 +1397,7 @@ fn a_rename_or_code_that_does_not_parse_holds_the_review() {
     );
     ready_for_review(&mut activity, now);
     activity
-        .watch_prompt(&state, now)
+        .watch_prompt(&mut state, now)
         .expect("the change that parses arms it");
 
     // Nor a buffer past what the parser reads, which has no parse to trust: the
@@ -1403,7 +1412,7 @@ fn a_rename_or_code_that_does_not_parse_holds_the_review() {
     edit(&mut state, 700, &unparsed);
     ready_for_review(&mut activity, now);
     assert!(
-        activity.watch_prompt(&state, now).is_none(),
+        activity.watch_prompt(&mut state, now).is_none(),
         "a review fired on a buffer that was never parsed"
     );
 }

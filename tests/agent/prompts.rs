@@ -58,7 +58,7 @@ fn prompt_golden_digest_matches_versions() {
     // the failure worth catching is a version bumped with the golden left
     // alone, which a digest comparison on its own reads as fine.
     let recorded_versions = (6, 12);
-    let recorded_digest = "d6dad496e38a83cdbad2a4d5c23020d0b84dba3aa12186da8c00a5fe90afd890";
+    let recorded_digest = "c4a3f49d322a81b625a74fd8439b73fdfe8a62895aaf64b78610fdb15abaf180";
 
     assert_eq!(
         (LIVE_PROMPT_VERSION, REPORT_PROMPT_VERSION),
@@ -185,8 +185,8 @@ fn interview_prompt_pins_reacto_star_and_safety_boundaries() {
         proactive_review("  1| answer = []", None),
         time_warning(),
         wrap_up("time_up"),
-        test_results_reaction("2/3 passed", false),
-        test_results_reaction("3/3 passed", true),
+        test_results_reaction("2/3 passed", false, None),
+        test_results_reaction("3/3 passed", true, None),
     ]
     .join("\n");
     assert!(
@@ -967,9 +967,12 @@ fn a_watch_prompt_carries_the_code_instead_of_a_read() {
     let review = proactive_review("code: python", Some(&excerpt));
     assert!(review.contains(&excerpt));
     assert!(review.contains("`read_editor` shows anything it leaves out"));
-    assert!(!review.contains("Call `read_editor` before evaluating code"));
+
+    // Without an excerpt the model already holds the code, so the prompt says
+    // so instead of sending it to read the editor again.
     let without = proactive_review("code: python", None);
-    assert!(without.contains("Call `read_editor` before evaluating code"));
+    assert!(without.contains("The editor is unchanged since you last saw it."));
+    assert!(!without.contains("read_editor"), "{without}");
 
     // Nothing changed, nothing to show; a trailing newline is not a line.
     assert_eq!(changed_excerpt("python", before, before), None);
