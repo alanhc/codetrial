@@ -8,10 +8,11 @@ can select it.
 
 ## The active bundle
 
-Bundle 13: live prompt 5, report prompt 11, rubric 1, report schema 2.
+Bundle 14: live prompt 6, report prompt 12, rubric 1, report schema 2.
 
 | Bundle | Introduced |
 |---|---|
+| 14 | Test counts, deltas, and diagnostics in the evidence projection retain their unverified browser provenance in live, interim, and final assessment prompts. Test event counts are labeled browser-reported, and the shared assessment heading distinguishes those claims from server-derived metadata. |
 | 13 | The interviewer's watch prompts carry a plain-text view of the deterministic evidence ledger, a few lines of counts and closed enumerations with no digests, timestamps or entries, plus a line of what arrived since the last watch prompt, and the editor fenced as untrusted, whole while it is short and otherwise the lines around the change since the last review; the interviewer calls `read_editor` for code it leaves out. The interim review carries the same view ahead of its untrusted editor and transcript blocks. A code change reaches the model as a coarse class (`formatting`, `comment`, `identifier` or `code`) with no node facts; the ledger keeps the finer class for replay. The interim review and the final report sample with a fixed seed. The report prompt delimits the candidate's editor, transcript and test output as untrusted blocks, with the refusal to follow anything inside them stated above all three, and the server's own evidence ledger rendered apart from them rather than inside the untrusted rolling assessment. |
 | 12 | The interviewer records the step the candidate just finished before moving to the next, and the evidence reply that first ticks a later step names the earlier steps of the same framework still without evidence, so the candidate's step list fills in order rather than all at once. |
 | 11 | Candidate-authored test evidence includes the bounded input beside its result, so the interviewer and report reviewer can identify the case. |
