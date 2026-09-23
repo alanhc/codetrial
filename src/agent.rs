@@ -45,13 +45,14 @@ pub use integrity::{sanitize_integrity_event, sanitize_test_run};
 use problems::variant_for;
 pub use problems::{DEFAULT_PROBLEM_ID, PROBLEMS, find_problem, get_problem, topics_for};
 pub use prompts::{
-    InterimReviewInput, LanguageChoiceContext, ReportPromptInput, build_instructions_for_plan,
-    changed_excerpt, cold_restart, format_test_run, greeting, hint_ladder_used_text,
-    hint_rung_text, hint_rung_withheld_text, interim_review_prompt, interim_system_instruction,
-    language_choice, log_hint_text, numbered, proactive_review, read_editor_text,
-    released_follow_ups, report_prompt, report_system_instruction, rolling_assessment,
-    silence_nudge, spoken_language, test_results_reaction, test_setup_error_reaction, time_warning,
-    unrecorded_earlier_phases, wrap_up,
+    InterimReviewInput, LanguageChoiceContext, MAX_EXCERPT_LINE_CHARS, MAX_NUMBERED_BYTES,
+    ReportPromptInput, build_instructions_for_plan, changed_excerpt, cold_restart, format_test_run,
+    greeting, hint_ladder_used_text, hint_rung_text, hint_rung_withheld_text,
+    interim_review_prompt, interim_system_instruction, language_choice, log_hint_text, numbered,
+    numbered_from, proactive_review, read_editor_text, released_follow_ups, report_prompt,
+    report_system_instruction, rolling_assessment, silence_nudge, spoken_language,
+    test_results_reaction, test_setup_error_reaction, time_warning, unrecorded_earlier_phases,
+    wrap_up,
 };
 pub(crate) use report::sanitize_report_candidate;
 pub use report::{

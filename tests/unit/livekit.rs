@@ -1233,7 +1233,7 @@ fn a_real_operator_fix_arms_the_proactive_review() {
     // numbers it, so the review needs no read to see it.
     let fence = position(&prompt, "BEGIN UNTRUSTED EDITOR (");
     assert!(
-        position(&prompt, "  2|     while low <= high:") > fence,
+        position(&prompt, "2|     while low <= high:") > fence,
         "{prompt}"
     );
 }
