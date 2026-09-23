@@ -102,6 +102,10 @@ pub(super) struct RuntimeActivity {
     /// replacing the transport under it throws the answer away on a socket
     /// nothing will ever read.
     pub(super) tool_response_outstanding: bool,
+    /// What the Live turns of this interview were billed, summed over every
+    /// socket it ran on. Operational, logged at the end; never model input.
+    pub(super) live_usage: crate::gemini::TokenUsage,
+    pub(super) live_turns: u64,
 }
 
 /// Whether a pause landing now leaves output still on its way.
@@ -153,6 +157,8 @@ impl RuntimeActivity {
             floor: Floor::Listening,
             discarding_output: false,
             tool_response_outstanding: false,
+            live_usage: crate::gemini::TokenUsage::default(),
+            live_turns: 0,
 
             // Seeded at `now` rather than in the past: the first minutes of an
             // interview are the greeting and the problem statement, and there
