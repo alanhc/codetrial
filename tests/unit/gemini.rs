@@ -110,14 +110,37 @@ fn report_network_budget_covers_every_repair_and_retry_per_generation() {
     );
 
     // The deadline has to pay for the pool it hands out. A budget the clock
-    // cannot fund is calls that are promised and then cut off mid-flight.
-    let worst_case =
-        (REPORT_ATTEMPT_TIMEOUT + REPORT_RETRY_BACKOFF) * MAX_REPORT_HTTP_ATTEMPTS as u32;
-    assert!(
-        worst_case < crate::livekit::REPORT_TIMEOUT,
-        "{worst_case:?} of calls against a {:?} deadline",
-        crate::livekit::REPORT_TIMEOUT
-    );
+    // cannot fund is calls that are promised and then cut off mid-flight. Both
+    // pairs, because the local one is the one nobody runs by default.
+    for (attempt, deadline) in [
+        (REPORT_ATTEMPT_TIMEOUT, crate::livekit::REPORT_TIMEOUT),
+        (
+            LOCAL_REPORT_ATTEMPT_TIMEOUT,
+            crate::livekit::LOCAL_REPORT_TIMEOUT,
+        ),
+    ] {
+        let worst_case = (attempt + REPORT_RETRY_BACKOFF) * MAX_REPORT_HTTP_ATTEMPTS as u32;
+        assert!(
+            worst_case < deadline,
+            "{worst_case:?} of calls against a {deadline:?} deadline"
+        );
+    }
+}
+
+/// Whichever base this process has, the report attempt gets that base's
+/// deadline, and neither deadline is zero: a zero here cancels every call
+/// before it is sent. The local branch is reached by
+/// `binary_web_gives_a_local_report_base_the_longer_wait` in tests/cli.rs,
+/// which starts a process that has one.
+#[test]
+fn the_report_attempt_deadline_follows_the_base() {
+    let expected = if report_endpoint_is_local() {
+        LOCAL_REPORT_ATTEMPT_TIMEOUT
+    } else {
+        REPORT_ATTEMPT_TIMEOUT
+    };
+    assert_eq!(report_attempt_timeout(), expected);
+    assert!(REPORT_ATTEMPT_TIMEOUT < LOCAL_REPORT_ATTEMPT_TIMEOUT);
 }
 
 #[test]
