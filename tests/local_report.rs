@@ -21,6 +21,7 @@ async fn local_report() {
             golden["report"].as_str().unwrap().to_string()
         }
     };
+
     // `find_problem` rather than `get_problem`, which opens the default for a
     // name it does not know: a typo would validate against Two Sum and pass a
     // report that names the real problem.
