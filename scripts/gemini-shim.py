@@ -10,7 +10,8 @@ and responses are carried across as OpenAI tools, so run llama-server with
 `--jinja`. The live interviewer socket is not handled; it still goes to Google.
 
     llama-server -m model.gguf --port 8080 -ngl 99 -c 32768
-    scripts/gemini-shim.py --listen 127.0.0.1:8090 --llama http://127.0.0.1:8080
+    scripts/gemini-shim.py --listen 127.0.0.1:8090 --llama http://127.0.0.1:8080 \
+        --thinking off
     CODETRIAL_GEMINI_REST_BASE=http://127.0.0.1:8090 make web
 
 Standard library only, so it runs wherever the test gate's Python does.
