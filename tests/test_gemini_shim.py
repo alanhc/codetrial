@@ -159,12 +159,26 @@ class ToolTranslationTests(unittest.TestCase):
         self.assertNotIn("tools", request)
         self.assertEqual(request["messages"], [{"role": "user", "content": "prompt"}])
         self.assertEqual(request["chat_template_kwargs"], {"enable_thinking": False})
-        self.assertEqual(request["stop"], ["<|channel>"])
+        self.assertEqual(request["stop"], [SHIM.THOUGHT_LOOP])
 
     def test_thinking_left_on_adds_no_stop(self):
         request = SHIM.to_chat_request({"contents": [{"parts": [{"text": "hi"}]}]})
         self.assertNotIn("stop", request)
         self.assertEqual(request["max_tokens"], SHIM.DEFAULT_MAX_TOKENS)
+
+    def test_thinking_can_be_turned_off_for_every_request(self):
+        request = SHIM.to_chat_request(
+            {"contents": [{"parts": [{"text": "hi"}]}]}, thinking_off=True
+        )
+        self.assertEqual(request["chat_template_kwargs"], {"enable_thinking": False})
+        self.assertEqual(request["stop"], [SHIM.THOUGHT_LOOP])
+
+    def test_the_loop_stop_leaves_room_for_empty_channels_before_a_reply(self):
+        # Two empty channels and then a reply is what gemma writes after a tool
+        # response; only a fourth opener in a row is the loop.
+        reply = SHIM.THOUGHT_BLOCK * 2 + "Here is a nudge."
+        self.assertNotIn(SHIM.THOUGHT_LOOP, reply)
+        self.assertIn(SHIM.THOUGHT_LOOP, SHIM.THOUGHT_BLOCK * 4)
 
     def test_stop_sequences_pass_through(self):
         request = SHIM.to_chat_request(

@@ -46,9 +46,16 @@ DEFAULT_MAX_TOKENS = 4096
 # nothing to say opens an empty thought channel instead of stopping, closes it
 # and opens another, until the output limit: the interim review's "return
 # nothing" case spent 512 tokens and seven seconds that way, and the markup came
-# back as three notes. Stopping at the opener ends it in one token, and anything
-# that still slips into the text is taken back out.
-THOUGHT_OPENER = "<|channel>"
+# back as three notes.
+#
+# Not a stop at the first opener, which is what this used to be: after a tool
+# response the model writes one or two empty channels and then its real reply,
+# and stopping at the first one returned 27 of 28 such turns empty. Replayed
+# against those turns, a stop at the fourth consecutive opener let all 28 reply
+# and still ended the empty case in about 13 tokens; at the third, 2 of 28 were
+# cut off. Whatever markup reaches the text is taken back out.
+THOUGHT_BLOCK = "<|channel>thought\n<channel|>"
+THOUGHT_LOOP = "<channel|>" + THOUGHT_BLOCK * 2 + "<|channel>"
 THOUGHT_MARKUP = re.compile(r"<\|channel>.*?(?:<channel\|>|$)|<channel\|>", re.S)
 
 
@@ -172,7 +179,7 @@ def to_messages(contents):
     return messages
 
 
-def to_chat_request(body):
+def to_chat_request(body, thinking_off=False):
     messages = []
     system = body.get("systemInstruction")
     if system:
@@ -204,9 +211,13 @@ def to_chat_request(body):
     # against maxOutputTokens; a reasoning model here does the same, so honour it.
     stop = list(config.get("stopSequences", []))
     thinking = config.get("thinkingConfig", {})
-    if thinking.get("thinkingBudget") == 0 or thinking.get("thinkingLevel") == "NONE":
+    if (
+        thinking_off
+        or thinking.get("thinkingBudget") == 0
+        or thinking.get("thinkingLevel") == "NONE"
+    ):
         request["chat_template_kwargs"] = {"enable_thinking": False}
-        stop.append(THOUGHT_OPENER)
+        stop.append(THOUGHT_LOOP)
     if stop:
         request["stop"] = stop
     return request
@@ -272,6 +283,7 @@ def to_gemini_response(chat):
 class Handler(BaseHTTPRequestHandler):
     llama = "http://127.0.0.1:8080"
     upstream_timeout = UPSTREAM_TIMEOUT_S
+    thinking_off = False
 
     def do_POST(self):
         match = ROUTE.match(self.path.split("?", 1)[0])
@@ -285,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(400, error_body(400, f"bad request body: {error}"))
             return
 
-        request = to_chat_request(body)
+        request = to_chat_request(body, self.thinking_off)
         started = time.monotonic()
         upstream = urllib.request.Request(
             f"{self.llama}/v1/chat/completions",
@@ -357,11 +369,19 @@ def main():
         default=UPSTREAM_TIMEOUT_S,
         help="seconds one request may hold llama-server (default: %(default)s)",
     )
+    parser.add_argument(
+        "--thinking",
+        choices=["request", "off"],
+        default="request",
+        help="follow each request's thinkingConfig, or turn thinking off for all;"
+        " a request that names none leaves a reasoning model thinking",
+    )
     args = parser.parse_args()
 
     host, _, port = args.listen.rpartition(":")
     Handler.llama = args.llama.rstrip("/")
     Handler.upstream_timeout = args.upstream_timeout
+    Handler.thinking_off = args.thinking == "off"
     server = ThreadingHTTPServer((host or "127.0.0.1", int(port)), Handler)
     sys.stderr.write(f"[gemini-shim] {args.listen} -> {Handler.llama}\n")
     try:
