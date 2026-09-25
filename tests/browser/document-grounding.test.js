@@ -348,3 +348,63 @@ test("re-reading one document keeps the selection made in the other", () => {
   retainedSelection(selected, "jd").skills.push(5);
   assert.deepEqual(selected.skills, [1]);
 });
+
+test("a Chinese JD yields its requirements, not its headings or duties", async () => {
+  // \b never fires between two Han characters, so this used to come back
+  // empty however many requirements it held.
+  const jd = await parseGroundingFile(txt([
+    "工作內容",
+    "1、開發與維護後端 API 服務",
+    "條件要求：",
+    "● 熟悉 Python 或 Go 語言",
+    "● 三年以上後端開發經驗",
+    "● 具備 Linux 系統操作能力",
+    "加分條件",
+    "（1）有 RISC-V 相關經驗者優先",
+  ].join("\n")), "jd");
+  assert.deepEqual(jd.requirements, [
+    "熟悉 Python 或 Go 語言",
+    "三年以上後端開發經驗",
+    "具備 Linux 系統操作能力",
+    "有 RISC-V 相關經驗者優先",
+  ]);
+});
+
+test("a simplified Chinese JD is read the same way", async () => {
+  const jd = await parseGroundingFile(txt([
+    "岗位职责：",
+    "一、负责推荐系统的研发",
+    "任职要求：",
+    "1．精通 C++，熟练掌握数据结构与算法",
+    "2．有大规模分布式系统经验者优先",
+  ].join("\n")), "jd");
+  assert.deepEqual(jd.requirements, ["精通 C++，熟练掌握数据结构与算法", "有大规模分布式系统经验者优先"]);
+});
+
+test("a short Chinese requirement is not mistaken for a heading", async () => {
+  // As short as "條件要求", but it names a requirement rather than a section.
+  const jd = await parseGroundingFile(txt("兩年以上經驗\n具備溝通能力"), "jd");
+  assert.deepEqual(jd.requirements, ["兩年以上經驗", "具備溝通能力"]);
+});
+
+test("a Chinese resume yields skills after a full-width colon and anchors after verbs", async () => {
+  const resume = await parseGroundingFile(txt([
+    "專業技能：Rust、Python，C；Linux kernel",
+    "專案經驗",
+    "・主導 RISC-V kernel 開發，prefill 提升 8.9 倍",
+    "・負責金鑰更新回滾修正",
+  ].join("\n")), "resume");
+  assert.deepEqual(resume.skills, ["Rust", "Python", "C", "Linux kernel"]);
+  assert.deepEqual(resume.anchors, ["主導 RISC-V kernel 開發，prefill 提升 8.9 倍", "負責金鑰更新回滾修正"]);
+});
+
+test("Chinese list markers are stripped and a bare number keeps its digits", async () => {
+  const jd = await parseGroundingFile(txt([
+    "1、熟悉 Rust",
+    "（2）熟悉 Go",
+    "三、熟悉 SQL",
+    "■ 熟悉 Linux",
+    "3、5 年以上經驗",
+  ].join("\n")), "jd");
+  assert.deepEqual(jd.requirements, ["熟悉 Rust", "熟悉 Go", "熟悉 SQL", "熟悉 Linux", "3、5 年以上經驗"]);
+});

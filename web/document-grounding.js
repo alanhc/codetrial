@@ -131,9 +131,15 @@ function normalizeLines(text) {
 // marker and "3.js experience" loses its "3.".
 // \p{Nd} rather than \d, so a full-width digit is a marker digit like an
 // ASCII one.
+//
+// Chinese lists are numbered "1、", "1．", "（1）" or "一、", and bulleted with
+// "●", "■", "◆", "▪" or "・" as often as with "•", so those are markers too.
+// "、" is the list comma and never ends a token, which is what lets it count
+// as a marker's punctuation the way "." and ")" do; the same two-letter
+// lookahead then keeps it off a bare number such as "3、5 years".
 function clean(line) {
   return line.trimStart()
-    .replace(/^(?:(?:-+|\*+)\s+|\p{Nd}+[.)]+(?=\s|\p{L}{2})\s*|•\s*)+/u, "")
+    .replace(/^(?:(?:-+|\*+)\s+|\p{Nd}+[.)．、）]+(?=\s|\p{L}{2})\s*|[(（]\p{Nd}+[)）]\s*|[一二三四五六七八九十]+、\s*|[•●■◆▪・]\s*)+/u, "")
     .slice(0, textLimit).trim();
 }
 
@@ -162,15 +168,34 @@ function unique(values, max) {
   return [...new Set(values.map(clean).filter((value) => /\p{L}/u.test(value)))].slice(0, max);
 }
 
+// The Chinese words a JD requirement and a resume anchor are written with,
+// traditional and simplified. Matched without \b, which needs a word
+// character on one side and so never fires between two Han characters: a
+// Chinese JD used to yield no requirements at all, because every one of the
+// English words it was matched against is spelled some other way there.
+const cjkRequirement = /(要求|需求|必備|必备|必須|必须|具備|具备|熟悉|熟練|熟练|精通|經驗|经验|能力|了解|瞭解|理解|掌握|擅長|擅长|優先|优先|尤佳|加分|資格|资格|以上)/u;
+const cjkAnchor = /(專案|项目|負責|负责|主導|主导|帶領|带领|開發|开发|實作|實現|实现|建立|建置|打造|設計|设计|改善|改進|改进|優化|优化|提升|降低|減少|减少|導入|导入)/u;
+
+// A section heading such as "條件要求", "加分條件" or "專案經驗" is made of
+// the very words the lines under it are matched on, so without this each
+// heading would take one of the few snippets as a requirement or an anchor
+// that says nothing. Named rather than guessed from length: "兩年以上經驗" is
+// as short as a heading and is a real requirement.
+const cjkHeading = /^(工作|職務|职务|職位|职位|崗位|岗位|任職|任职|應徵|应聘|其他|加分|優先|优先|專案|项目|專業|专业)?(條件|条件|要求|需求|資格|资格|項目|项目|項|项|經驗|经验|經歷|经历|技能|專長|专长|內容|内容|職責|职责)(要求|需求)?[:：]?$/u;
+
 function parseJd(lines) {
-  const marked = lines.filter((line) => /\b(required?|requirements?|must|should|experience|proficien|knowledge|ability)\b/i.test(line));
+  const marked = lines.filter((line) => /\b(required?|requirements?|must|should|experience|proficien|knowledge|ability)\b/i.test(line)
+    || (cjkRequirement.test(line) && !cjkHeading.test(clean(line))));
   return { requirements: unique(marked, limits.requirements), skills: [], anchors: [] };
 }
 
+// A Chinese skills line is headed "技能：" with a full-width colon and lists
+// its items with "、", "，" or "；" as often as with their ASCII forms.
 function parseResume(lines) {
-  const skillLines = lines.filter((line) => /^(skills?|technologies|stack)\s*:/i.test(line));
-  const skills = skillLines.flatMap((line) => line.replace(/^[^:]+:/, "").split(/[,;|]/));
-  const anchors = lines.filter((line) => /\b(project|experience|built|led|created|implemented|delivered|improved|reduced|increased|developed)\b/i.test(line));
+  const skillLines = lines.filter((line) => /^(skills?|technologies|stack|技能|專業技能|专业技能|專長|专长|技術|技术|技術棧|技术栈)\s*[:：]/i.test(line));
+  const skills = skillLines.flatMap((line) => line.replace(/^[^:：]+[:：]/, "").split(/[,;|、，；｜]/));
+  const anchors = lines.filter((line) => /\b(project|experience|built|led|created|implemented|delivered|improved|reduced|increased|developed)\b/i.test(line)
+    || (cjkAnchor.test(line) && !cjkHeading.test(clean(line))));
   return { requirements: [], skills: unique(skills, limits.skills), anchors: unique(anchors, limits.anchors) };
 }
 
