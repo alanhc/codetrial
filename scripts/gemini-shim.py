@@ -38,10 +38,15 @@ UPSTREAM_TIMEOUT_S = 45
 
 # For a request that names no output limit. llama-server's own default is none,
 # so a model that falls into repeating itself writes until the context is full:
-# an interviewer turn in the behaviour check ran past 9,900 tokens and out-waited
-# UPSTREAM_TIMEOUT_S. With a limit that turn ends as MAX_TOKENS instead, which
-# the caller sees and a hang hides. Thinking counts against it too.
-DEFAULT_MAX_TOKENS = 4096
+# an interviewer turn in the behaviour check ran past 9,900 tokens. With a limit
+# that turn ends as MAX_TOKENS instead, which the caller sees and a hang hides.
+# Thinking counts against it too.
+#
+# Sized to finish inside UPSTREAM_TIMEOUT_S, or the limit never arrives: gemma-4-
+# 12b on a 5070 Ti writes about 77 tokens a second, so 4096 took 53 seconds and
+# would now end as a timeout. 2048 takes about 27. The longest turn seen with
+# thinking off was 93 tokens, and with it on the reasoning ran to about 300.
+DEFAULT_MAX_TOKENS = 2048
 
 # Gemma 4's thought-channel markup. With thinking turned off, a model that has
 # nothing to say opens an empty thought channel instead of stopping, closes it
