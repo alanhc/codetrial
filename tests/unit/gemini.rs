@@ -391,6 +391,48 @@ fn several_wrong_plan_items_are_not_paired_by_position() {
     );
 }
 
+/// The validator counts an improvement named under both feedback sections
+/// once, so the guidance does too; counted twice, it asked for an item the
+/// validator then rejected as a duplicate.
+#[test]
+fn an_improvement_in_both_sections_is_counted_once() {
+    let mut report = valid_report();
+    report["communicationFeedback"]["improvements"][0] = json!("Explain complexity");
+    report["improvementPlan"][2]["weakness"] = json!("Name your action");
+    let repair = plan_repair(&report);
+
+    assert!(repair.contains("holds 3 improvements"), "{repair}");
+    assert!(!repair.contains("No item has the weakness"), "{repair}");
+}
+
+/// An item without a weakness keeps its place in the count, so every index
+/// the repair names is the item's own, the one the validator reports.
+#[test]
+fn an_item_without_a_weakness_does_not_shift_later_indexes() {
+    let mut report = valid_report();
+    report["improvementPlan"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("weakness");
+    let repair = plan_repair(&report);
+    assert!(
+        repair.contains("improvementPlan[0] has no weakness string"),
+        "{repair}"
+    );
+    assert!(
+        repair.contains(r#"Rewrite improvementPlan[0] as the item for "Explain complexity""#),
+        "{repair}"
+    );
+
+    report["improvementPlan"][2]["weakness"] = json!("Say what you did");
+    let repair = plan_repair(&report);
+    assert!(
+        repair.contains(r#"improvementPlan[2].weakness "Say what you did""#),
+        "{repair}"
+    );
+    assert!(!repair.contains("improvementPlan[1]"), "{repair}");
+}
+
 /// The guidance is for the model. A report that breaks some other rule gets
 /// none of it, and the note a candidate reads when the repairs run out never
 /// carries it.

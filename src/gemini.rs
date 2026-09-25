@@ -559,18 +559,28 @@ fn improvement_plan_guidance(output: &str) -> Option<String> {
     };
     let mut improvements = strings("/codingFeedback/improvements");
     improvements.extend(strings("/communicationFeedback/improvements"));
+
+    // Once each, the way the validator counts them: it compares sets, so the
+    // same improvement under both feedback sections wants one item. Counted
+    // twice here, the repair asked for an item the validator then rejects as a
+    // duplicate.
+    let mut distinct = std::collections::HashSet::new();
+    improvements.retain(|improvement| distinct.insert(*improvement));
+
+    // One entry per item, a missing weakness included, so each index is the
+    // item's own and the one the validator reports. Filtering those out first
+    // shifted every later index, and the repair named the wrong item.
     let weaknesses = raw
         .get("improvementPlan")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter_map(|item| item.get("weakness").and_then(Value::as_str))
-        .map(str::trim)
+        .map(|item| item.get("weakness").and_then(Value::as_str).map(str::trim))
         .collect::<Vec<_>>();
 
     let missing = improvements
         .iter()
-        .filter(|improvement| !weaknesses.contains(improvement))
+        .filter(|improvement| !weaknesses.contains(&Some(**improvement)))
         .copied()
         .collect::<Vec<_>>();
 
@@ -582,7 +592,10 @@ fn improvement_plan_guidance(output: &str) -> Option<String> {
     let wrong = weaknesses
         .iter()
         .enumerate()
-        .filter(|(_, weakness)| !improvements.contains(weakness) || !seen.insert(**weakness))
+        .filter(|(_, weakness)| match weakness {
+            Some(weakness) => !improvements.contains(weakness) || !seen.insert(*weakness),
+            None => true,
+        })
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
     if wrong.is_empty() && missing.is_empty() {
@@ -596,16 +609,17 @@ fn improvement_plan_guidance(output: &str) -> Option<String> {
         improvements.len()
     );
     for &index in &wrong {
-        let weakness = weaknesses[index];
-        if improvements.contains(&weakness) {
-            guidance.push_str(&format!(
+        match weaknesses[index] {
+            None => guidance.push_str(&format!(
+                " improvementPlan[{index}] has no weakness string."
+            )),
+            Some(weakness) if improvements.contains(&weakness) => guidance.push_str(&format!(
                 " improvementPlan[{index}] repeats the weakness of an earlier item."
-            ));
-        } else {
-            guidance.push_str(&format!(
+            )),
+            Some(weakness) => guidance.push_str(&format!(
                 " improvementPlan[{index}].weakness {} is not a feedback improvement as written.",
                 quoted(weakness)
-            ));
+            )),
         }
     }
     for improvement in &missing {
