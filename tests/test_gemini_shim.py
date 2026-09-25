@@ -159,6 +159,29 @@ class ToolTranslationTests(unittest.TestCase):
         self.assertNotIn("tools", request)
         self.assertEqual(request["messages"], [{"role": "user", "content": "prompt"}])
         self.assertEqual(request["chat_template_kwargs"], {"enable_thinking": False})
+        self.assertEqual(request["stop"], ["<|channel>"])
+
+    def test_thinking_left_on_adds_no_stop(self):
+        request = SHIM.to_chat_request({"contents": [{"parts": [{"text": "hi"}]}]})
+        self.assertNotIn("stop", request)
+        self.assertEqual(request["max_tokens"], SHIM.DEFAULT_MAX_TOKENS)
+
+    def test_stop_sequences_pass_through(self):
+        request = SHIM.to_chat_request(
+            {
+                "contents": [{"parts": [{"text": "hi"}]}],
+                "generationConfig": {"stopSequences": ["END"]},
+            }
+        )
+        self.assertEqual(request["stop"], ["END"])
+
+    def test_thought_markup_is_removed_from_text(self):
+        looped = "<|channel>thought\n<channel|>" * 3
+        self.assertEqual(SHIM.to_parts({"content": looped}), [{"text": ""}])
+        self.assertEqual(
+            SHIM.to_parts({"content": "- A note.\n<|channel>thought\nhalf"}),
+            [{"text": "- A note.\n"}],
+        )
 
 
 if __name__ == "__main__":

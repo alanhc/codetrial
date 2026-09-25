@@ -35,6 +35,22 @@ ROUTE = re.compile(r"^/v1beta/models/([^/:]+):generateContent$")
 # default matches that deadline; --upstream-timeout changes it.
 UPSTREAM_TIMEOUT_S = 45
 
+# For a request that names no output limit. llama-server's own default is none,
+# so a model that falls into repeating itself writes until the context is full:
+# an interviewer turn in the behaviour check ran past 9,900 tokens and out-waited
+# UPSTREAM_TIMEOUT_S. With a limit that turn ends as MAX_TOKENS instead, which
+# the caller sees and a hang hides. Thinking counts against it too.
+DEFAULT_MAX_TOKENS = 4096
+
+# Gemma 4's thought-channel markup. With thinking turned off, a model that has
+# nothing to say opens an empty thought channel instead of stopping, closes it
+# and opens another, until the output limit: the interim review's "return
+# nothing" case spent 512 tokens and seven seconds that way, and the markup came
+# back as three notes. Stopping at the opener ends it in one token, and anything
+# that still slips into the text is taken back out.
+THOUGHT_OPENER = "<|channel>"
+THOUGHT_MARKUP = re.compile(r"<\|channel>.*?(?:<channel\|>|$)|<channel\|>", re.S)
+
 
 def convert_schema(node):
     """Gemini's OpenAPI subset to the JSON Schema llama.cpp compiles to a grammar.
@@ -170,8 +186,7 @@ def to_chat_request(body):
         request["tools"] = tools
     if "temperature" in config:
         request["temperature"] = config["temperature"]
-    if "maxOutputTokens" in config:
-        request["max_tokens"] = config["maxOutputTokens"]
+    request["max_tokens"] = config.get("maxOutputTokens", DEFAULT_MAX_TOKENS)
     if (
         config.get("responseMimeType") == "application/json"
         and "responseSchema" in config
@@ -187,9 +202,13 @@ def to_chat_request(body):
 
     # The Rust side asks for no thinking because Gemini charges thinking tokens
     # against maxOutputTokens; a reasoning model here does the same, so honour it.
+    stop = list(config.get("stopSequences", []))
     thinking = config.get("thinkingConfig", {})
     if thinking.get("thinkingBudget") == 0 or thinking.get("thinkingLevel") == "NONE":
         request["chat_template_kwargs"] = {"enable_thinking": False}
+        stop.append(THOUGHT_OPENER)
+    if stop:
+        request["stop"] = stop
     return request
 
 
@@ -204,7 +223,7 @@ def to_parts(message):
     caller would see from a model that called the tool with nothing.
     """
     parts = []
-    text = message.get("content") or ""
+    text = THOUGHT_MARKUP.sub("", message.get("content") or "")
     calls = message.get("tool_calls") or []
     if text or not calls:
         parts.append({"text": text})
