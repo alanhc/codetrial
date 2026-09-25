@@ -149,7 +149,11 @@ pub(super) const REPORT_TIMEOUT: Duration = Duration::from_secs(125);
 /// to paying for every call it hands out.
 pub(super) const LOCAL_REPORT_TIMEOUT: Duration = Duration::from_secs(240);
 
-pub(crate) fn report_timeout() -> Duration {
+/// The report deadline in force for this process: `LOCAL_REPORT_TIMEOUT` when
+/// `CODETRIAL_GEMINI_REST_BASE` points reports at a local model, otherwise
+/// `REPORT_TIMEOUT`. Public so a test of what the page is told can ask for it
+/// instead of assuming which one its environment selects.
+pub fn report_timeout() -> Duration {
     if crate::gemini::report_endpoint_is_local() {
         LOCAL_REPORT_TIMEOUT
     } else {
@@ -163,7 +167,7 @@ pub(crate) fn report_timeout() -> Duration {
 /// report that is still coming, and leaving never saves it. The server says
 /// this to the page in `/runtime-config.js`, because only the server knows
 /// which of the two deadlines is in force.
-pub(crate) fn report_escape_wait(report_timeout: Duration) -> Duration {
+pub fn report_escape_wait(report_timeout: Duration) -> Duration {
     report_timeout + WRAP_UP_WAIT + Duration::from_secs(2)
 }
 /// Whether the candidate is in the room, and since when they have not been.
