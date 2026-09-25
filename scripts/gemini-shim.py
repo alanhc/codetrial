@@ -25,9 +25,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROUTE = re.compile(r"^/v1beta/models/([^/:]+):generateContent$")
 
-# A full report at 16k output tokens on a mid-size model can take a while; the
-# Rust side enforces its own per-attempt deadline, so this only has to outlast it.
-UPSTREAM_TIMEOUT_S = 300
+# How long one request may hold llama-server. The Rust side gives a local report
+# attempt 45 seconds (LOCAL_REPORT_ATTEMPT_TIMEOUT) and then retries, but the
+# shim does not see it leave, so a longer wait here kept the GPU generating an
+# answer nobody would read while the retry queued behind it. Closing the
+# upstream socket is what stops llama-server, within about two seconds, so the
+# default matches that deadline; --upstream-timeout changes it.
+UPSTREAM_TIMEOUT_S = 45
 
 
 def convert_schema(node):
@@ -130,6 +134,7 @@ def to_gemini_response(chat):
 
 class Handler(BaseHTTPRequestHandler):
     llama = "http://127.0.0.1:8080"
+    upstream_timeout = UPSTREAM_TIMEOUT_S
 
     def do_POST(self):
         match = ROUTE.match(self.path.split("?", 1)[0])
@@ -152,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         try:
             with urllib.request.urlopen(
-                upstream, timeout=UPSTREAM_TIMEOUT_S
+                upstream, timeout=self.upstream_timeout
             ) as response:
                 chat = json.load(response)
         except urllib.error.HTTPError as error:
@@ -209,10 +214,17 @@ def main():
     parser.add_argument(
         "--llama", default="http://127.0.0.1:8080", help="llama-server base URL"
     )
+    parser.add_argument(
+        "--upstream-timeout",
+        type=float,
+        default=UPSTREAM_TIMEOUT_S,
+        help="seconds one request may hold llama-server (default: %(default)s)",
+    )
     args = parser.parse_args()
 
     host, _, port = args.listen.rpartition(":")
     Handler.llama = args.llama.rstrip("/")
+    Handler.upstream_timeout = args.upstream_timeout
     server = ThreadingHTTPServer((host or "127.0.0.1", int(port)), Handler)
     sys.stderr.write(f"[gemini-shim] {args.listen} -> {Handler.llama}\n")
     try:
