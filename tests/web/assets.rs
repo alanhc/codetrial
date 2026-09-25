@@ -403,12 +403,20 @@ async fn static_server_serves_health_fixture_and_missing_asset() {
 async fn runtime_config_can_disable_compiled_language_runs() {
     // Whichever deadline this process's environment selects: a run with
     // CODETRIAL_GEMINI_REST_BASE set is told the local wait, and that is right.
+    // Without it the hosted wait is pinned exactly, which is also what catches
+    // a `report_endpoint_is_local` that answers true for Google.
     let escape_wait_ms =
         codetrial::livekit::report_escape_wait(codetrial::livekit::report_timeout()).as_millis();
-    assert!(
-        matches!(escape_wait_ms, 135_000 | 250_000),
-        "{escape_wait_ms}"
-    );
+    let base_set =
+        std::env::var("CODETRIAL_GEMINI_REST_BASE").is_ok_and(|base| !base.trim().is_empty());
+    if base_set {
+        assert!(
+            matches!(escape_wait_ms, 135_000 | 250_000),
+            "{escape_wait_ms}"
+        );
+    } else {
+        assert_eq!(escape_wait_ms, 135_000);
+    }
     let (enabled_base, enabled_server) = spawn_web_server(web_config()).await;
     let client = reqwest::Client::new();
 
