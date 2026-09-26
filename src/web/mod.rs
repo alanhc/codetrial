@@ -21,6 +21,7 @@ mod assets;
 mod auth;
 mod consent;
 mod interviews;
+mod mentor;
 mod policy;
 mod pool;
 mod recordings;
@@ -227,6 +228,9 @@ pub(crate) struct AppState {
     /// error.
     provider_quota: ProviderQuota,
     room_authorizations: Arc<Mutex<token::RoomAuthorizations>>,
+    /// What `/mcp` reads, written by the interviewers the dispatcher starts.
+    /// Off, and the route a 404, unless it was built with a token.
+    mentor: crate::mentor::MentorBoard,
 }
 
 /// Opens the connection the server keeps, brings its schema up to date, and
@@ -278,6 +282,7 @@ pub(crate) fn web_router(
     config: WebServerConfig,
     dispatcher: Option<Arc<dyn RoomDispatcher>>,
     recorder: Option<crate::recording::Recorder>,
+    mentor: crate::mentor::MentorBoard,
 ) -> Router {
     let login = login_config(&config);
     let accounts_required = login.is_some();
@@ -359,6 +364,10 @@ pub(crate) fn web_router(
         .route("/api/recordings/{id}/events", get(recording_events_handler))
         .route("/runtime-config.js", get(runtime_config_handler))
         .route(
+            "/mcp",
+            post(mentor::mcp_handler).get(mentor::mcp_get_handler),
+        )
+        .route(
             "/api/reports",
             get(list_reports_handler)
                 .post(save_report_handler)
@@ -397,6 +406,7 @@ pub(crate) fn web_router(
             quota_refresher: Arc::new(quota_refresher),
             recording_workers: Arc::new(recording_workers),
             room_authorizations: Arc::default(),
+            mentor,
         })
 }
 
@@ -455,8 +465,13 @@ pub fn web_service_with_recorder(
     recorder: crate::recording::Recorder,
 ) -> IntoMakeServiceWithConnectInfo<Router, SocketAddr> {
     warn_about_unfetched_vendor(&config.web_dir);
-    web_router(config, dispatcher, Some(recorder))
-        .into_make_service_with_connect_info::<SocketAddr>()
+    web_router(
+        config,
+        dispatcher,
+        Some(recorder),
+        crate::mentor::MentorBoard::default(),
+    )
+    .into_make_service_with_connect_info::<SocketAddr>()
 }
 
 /// The dispatcher is optional because a web-only deployment is a supported
@@ -466,6 +481,17 @@ pub fn web_service_with_recorder(
 pub fn web_service_with_dispatcher(
     config: WebServerConfig,
     dispatcher: Option<Arc<dyn RoomDispatcher>>,
+) -> IntoMakeServiceWithConnectInfo<Router, SocketAddr> {
+    web_service_with_mentor(config, dispatcher, crate::mentor::MentorBoard::default())
+}
+
+/// As [`web_service_with_dispatcher`], with the board `/mcp` reads. The same
+/// board has to reach the dispatcher, which is what writes it, so the caller
+/// builds it once and hands it to both.
+pub fn web_service_with_mentor(
+    config: WebServerConfig,
+    dispatcher: Option<Arc<dyn RoomDispatcher>>,
+    mentor: crate::mentor::MentorBoard,
 ) -> IntoMakeServiceWithConnectInfo<Router, SocketAddr> {
     warn_about_unfetched_vendor(&config.web_dir);
 
@@ -486,7 +512,8 @@ pub fn web_service_with_dispatcher(
             delivery: delivery_provider(recording),
             config: recording.clone(),
         });
-    web_router(config, dispatcher, recorder).into_make_service_with_connect_info::<SocketAddr>()
+    web_router(config, dispatcher, recorder, mentor)
+        .into_make_service_with_connect_info::<SocketAddr>()
 }
 
 pub(crate) fn unauthorized_response() -> Response {

@@ -5,6 +5,7 @@ pub mod delivery;
 pub mod dispatch;
 pub mod gemini;
 pub mod livekit;
+pub mod mentor;
 pub mod recording;
 pub mod runtime;
 pub mod token;

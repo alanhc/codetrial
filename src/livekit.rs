@@ -1048,6 +1048,7 @@ pub async fn run_room(
     config: &AgentConfig,
     room_name: &str,
     now_seconds: u64,
+    mentor: &crate::mentor::MentorBoard,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let keys = Arc::new(GeminiKeys::from_config(config));
     let Some(OpenSession {
@@ -1073,6 +1074,13 @@ pub async fn run_room(
         boot: &boot,
         started_at,
     };
+    // Published before the first tick and withdrawn on every way out, so a
+    // mentor never reads a room that has not started or one that has ended.
+    let _published = crate::mentor::Published::new(mentor, room_name);
+    mentor.publish(
+        room_name,
+        crate::mentor::Snapshot::of(boot.problem, &turn.state, now_seconds),
+    );
     let ids = RoomIdentities {
         room_name,
         agent: &agent_identity,
@@ -1110,6 +1118,17 @@ pub async fn run_room(
                 on_hard_deadline(&room, &mut context, &mut loops, interview).await?
             }
             _ = watch.tick(), if !turn.state.ended => {
+                // On the tick rather than per packet: a mentor is asked a
+                // question by a person, and a view two seconds old is fresh
+                // for that without touching the packet path at all.
+                mentor.publish(
+                    room_name,
+                    crate::mentor::Snapshot::of(
+                        boot.problem,
+                        &turn.state,
+                        crate::current_epoch_seconds(),
+                    ),
+                );
                 let mut context =
                     turn.context(&mut output_audio, &mut gemini, media.identity.as_deref());
                 on_watch_tick(&room, &mut context, &mut loops, interview).await?

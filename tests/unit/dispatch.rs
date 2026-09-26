@@ -46,6 +46,7 @@ async fn the_configured_cap_is_the_one_enforced() {
         runtime: tokio::runtime::Handle::current(),
         live: Arc::clone(&live),
         max_concurrent: 1,
+        mentor: crate::mentor::MentorBoard::default(),
     };
     let provider = Provider {
         id: crate::config::PRIMARY_PROVIDER_ID.to_string(),
@@ -79,6 +80,7 @@ async fn a_concurrent_burst_never_overbooks_and_released_capacity_returns() {
         runtime: tokio::runtime::Handle::current(),
         live: Arc::clone(&live),
         max_concurrent: 8,
+        mentor: crate::mentor::MentorBoard::default(),
     };
 
     // Reserved from concurrent tasks released together, not in a loop: the cap

@@ -1349,6 +1349,10 @@ async fn every_owner_scoped_route_refuses_an_anonymous_request() {
         "/runtime-config.js",
         codetrial::recording::WEBHOOK_ROUTE,
         codetrial::recording::REPLAY_ROUTE,
+        // Like the two above, a machine principal rather than a person: an MCP
+        // client holding the operator's bearer token. Without a token the
+        // route is a 404; `tests/web/mentor.rs` covers both.
+        "/mcp",
     ];
     for route in declared_routes() {
         let known = owner_scoped.iter().any(|(_, path)| *path == route)

@@ -27,6 +27,9 @@ pub struct LocalDispatcher {
     /// From `config::max_concurrent_interviews`, so the ceiling an operator set
     /// is the ceiling this enforces.
     pub max_concurrent: usize,
+    /// Where each interview this dispatcher starts publishes what a mentor may
+    /// read. The same board the web router serves `/mcp` from.
+    pub mentor: crate::mentor::MentorBoard,
 }
 
 impl RoomDispatcher for LocalDispatcher {
@@ -43,6 +46,7 @@ impl RoomDispatcher for LocalDispatcher {
             Reservation::New(slot) => slot,
         };
         let config = agent_config_for(&self.config, provider);
+        let mentor = self.mentor.clone();
 
         // Spawned, not awaited: this runs on the request path, and the task
         // outlives the response by the length of the interview.
@@ -52,6 +56,7 @@ impl RoomDispatcher for LocalDispatcher {
                 &config,
                 &slot.room_name,
                 crate::web::current_epoch_seconds(),
+                &mentor,
             )
             .await
             {

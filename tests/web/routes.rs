@@ -269,6 +269,7 @@ fn router_routes_match_a_fixed_allowlist() {
         "/api/interviews/{id}/snapshot",
         "/api/recording/replay",
         "/api/recording/webhook",
+        "/mcp",
     ];
     allowed.sort_unstable();
 

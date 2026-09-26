@@ -350,6 +350,17 @@ fn run_web(options: CliOptions) -> Result<(), String> {
     // at nothing else.
     clear_web_error_log();
 
+    // One board, written by the interviewers the dispatcher starts and read by
+    // `/mcp`. Without a token the route stays a 404 and nothing reads it.
+    let mentor =
+        codetrial::mentor::MentorBoard::with_token(nonempty(&values, "CODETRIAL_MCP_TOKEN"));
+    if mentor.enabled() {
+        eprintln!(
+            "mentor: /mcp is on. Anyone holding CODETRIAL_MCP_TOKEN can read the problem, code and \
+             test runs of every live interview on this server."
+        );
+    }
+
     // Whether this process also hosts interviewers. A full agent config, which
     // is a Gemini key on top of what the web side needs, means yes; without it
     // this is the web half of a split deployment and agents arrive from
@@ -377,11 +388,12 @@ fn run_web(options: CliOptions) -> Result<(), String> {
                     runtime: tokio::runtime::Handle::current(),
                     live: Arc::default(),
                     max_concurrent,
+                    mentor: mentor.clone(),
                 }) as Arc<dyn RoomDispatcher>
             });
             axum::serve(
                 listener,
-                codetrial::web::web_service_with_dispatcher(config, dispatcher),
+                codetrial::web::web_service_with_mentor(config, dispatcher, mentor),
             )
             .await
         })
@@ -629,6 +641,8 @@ fn run_livekit(config: AgentConfig, room_name: &str) -> Result<(), String> {
             &config,
             room_name,
             codetrial::web::current_epoch_seconds(),
+            // A standalone agent has no web server beside it to serve `/mcp`.
+            &codetrial::mentor::MentorBoard::default(),
         ))
         .map_err(|error| {
             codetrial::gemini::GeminiKeys::from_config(&config).redact(&error.to_string())
