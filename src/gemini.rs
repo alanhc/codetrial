@@ -87,6 +87,13 @@ pub(crate) const FIRST_OPEN_LIMIT: Duration = CONNECT_TIMEOUT.saturating_add(SET
 /// the retry that followed was not recovering from an upstream fault, it was
 /// racing the same latency again with the budget already spent.
 const REPORT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(20);
+/// The same attempt against a model on the operator's own hardware, chosen by
+/// `report_endpoint_is_local`. A 9B to 14B model on one consumer GPU writes a
+/// full report in 14 to 32 seconds, so the hosted 20 would cut off most of
+/// them mid-sentence. Held apart from the hosted value rather than replacing
+/// it, because every second added here is a second a Gemini candidate would
+/// otherwise wait on a call that has already failed.
+const LOCAL_REPORT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(45);
 /// The first wait between transport attempts, doubled for each call after it.
 /// A flat second spent the whole pool on a 503 inside five seconds of a
 /// deadline twenty-five times that long, so an overload that took ten seconds
@@ -1601,6 +1608,9 @@ async fn post_generate_content(
     let response = crate::http_client()
         .post(url)
         .header("x-goog-api-key", api_key)
+        // The same deadline, said to the server: a local shim stops its model
+        // at it rather than generating an answer nobody is waiting for.
+        .header("X-Server-Timeout", timeout.as_secs().to_string())
         .timeout(timeout)
         .json(request)
         .send()
@@ -1631,7 +1641,7 @@ async fn generate_report_once(
     request: &Value,
     what: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    generate_content_once(api_key, url, request, REPORT_ATTEMPT_TIMEOUT, what).await
+    generate_content_once(api_key, url, request, report_attempt_timeout(), what).await
 }
 
 pub(crate) async fn open_live_session_at(
@@ -1898,9 +1908,45 @@ fn tool_ack_pcm(
 /// failure note, so the credential travels in a header instead.
 fn gemini_generate_content_url(model: &str) -> String {
     format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+        "{}/v1beta/models/{}:generateContent",
+        rest_base(),
         gemini_model_id(model)
     )
+}
+
+const DEFAULT_REST_BASE: &str = "https://generativelanguage.googleapis.com";
+
+/// Whether the report calls go somewhere other than Google, which is what
+/// buys them the longer deadlines. Anything but the default base is taken to
+/// be self-hosted: the variable exists to reach a local model, and a proxy in
+/// front of Gemini that got the longer budget would only wait longer on a
+/// failure, never lose a report it would otherwise have had.
+pub(crate) fn report_endpoint_is_local() -> bool {
+    rest_base() != DEFAULT_REST_BASE
+}
+
+fn report_attempt_timeout() -> Duration {
+    if report_endpoint_is_local() {
+        LOCAL_REPORT_ATTEMPT_TIMEOUT
+    } else {
+        REPORT_ATTEMPT_TIMEOUT
+    }
+}
+
+/// `CODETRIAL_GEMINI_REST_BASE`, read from the process environment like
+/// `INTERVIEW_ROOM_NAME` rather than from a config file. It points the report
+/// and interim calls at another server that answers `generateContent`, such as
+/// a local model behind `scripts/gemini-shim.py`; the live socket is not
+/// affected. Read once, because it names where every call in the process goes.
+fn rest_base() -> &'static str {
+    static BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    BASE.get_or_init(|| {
+        std::env::var("CODETRIAL_GEMINI_REST_BASE")
+            .ok()
+            .map(|base| base.trim().trim_end_matches('/').to_string())
+            .filter(|base| !base.is_empty())
+            .unwrap_or_else(|| DEFAULT_REST_BASE.to_string())
+    })
 }
 
 /// Model names are accepted both bare and resource-qualified; the REST path
