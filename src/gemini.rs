@@ -1405,6 +1405,9 @@ async fn generate_content_once(
     let response = crate::http_client()
         .post(url)
         .header("x-goog-api-key", api_key)
+        // The same deadline, said to the server: a local shim stops its model
+        // at it rather than generating an answer nobody is waiting for.
+        .header("X-Server-Timeout", timeout.as_secs().to_string())
         .timeout(timeout)
         .json(request)
         .send()
@@ -1594,9 +1597,28 @@ fn live_websocket_url_at(endpoint: &str, api_key: &str) -> String {
 /// failure note, so the credential travels in a header instead.
 fn gemini_generate_content_url(model: &str) -> String {
     format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+        "{}/v1beta/models/{}:generateContent",
+        rest_base(),
         gemini_model_id(model)
     )
+}
+
+const DEFAULT_REST_BASE: &str = "https://generativelanguage.googleapis.com";
+
+/// `CODETRIAL_GEMINI_REST_BASE`, read from the process environment like
+/// `INTERVIEW_ROOM_NAME` rather than from a config file. It points the report
+/// and interim calls at another server that answers `generateContent`, such as
+/// a local model behind `scripts/gemini-shim.py`; the live socket is not
+/// affected. Read once, because it names where every call in the process goes.
+fn rest_base() -> &'static str {
+    static BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    BASE.get_or_init(|| {
+        std::env::var("CODETRIAL_GEMINI_REST_BASE")
+            .ok()
+            .map(|base| base.trim().trim_end_matches('/').to_string())
+            .filter(|base| !base.is_empty())
+            .unwrap_or_else(|| DEFAULT_REST_BASE.to_string())
+    })
 }
 
 /// Model names are accepted both bare and resource-qualified; the REST path
