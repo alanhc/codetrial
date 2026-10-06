@@ -34,6 +34,21 @@ use credentials::{
 pub(crate) use credentials::{QUOTA_COOLDOWN, exhausted_until};
 
 const LIVE_WEBSOCKET_ENDPOINT: &str = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+
+/// `CODETRIAL_GEMINI_LIVE_URL`, read from the process environment like
+/// `CODETRIAL_GEMINI_REST_BASE`: another server that speaks Live's
+/// `BidiGenerateContent` socket, such as a local voice pipeline. Unset, the
+/// interviewer talks to Google. Read once, for the same reason the REST base is.
+fn live_endpoint() -> &'static str {
+    static ENDPOINT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    ENDPOINT.get_or_init(|| {
+        std::env::var("CODETRIAL_GEMINI_LIVE_URL")
+            .ok()
+            .map(|url| url.trim().to_string())
+            .filter(|url| !url.is_empty())
+            .unwrap_or_else(|| LIVE_WEBSOCKET_ENDPOINT.to_string())
+    })
+}
 const SETUP_TIMEOUT: Duration = Duration::from_secs(15);
 /// Bounds the socket itself, where `SETUP_TIMEOUT` bounds the exchange over it.
 /// Without this a connect that never answers hangs its caller for as long as
@@ -568,7 +583,7 @@ pub(crate) async fn live_session_with_keys(
     boot: &RuntimeBootstrap<'_>,
     handle: Option<(&str, &str)>,
 ) -> Result<GeminiLiveSession, Box<dyn std::error::Error + Send + Sync>> {
-    live_session_with_keys_at(LIVE_WEBSOCKET_ENDPOINT, keys, boot, handle).await
+    live_session_with_keys_at(live_endpoint(), keys, boot, handle).await
 }
 
 pub(crate) async fn live_session_with_keys_at(
@@ -685,7 +700,7 @@ pub async fn check_live_session(
     keys: &GeminiKeys,
     boot: &RuntimeBootstrap<'_>,
 ) -> Result<GeminiLiveSession, Box<dyn std::error::Error + Send + Sync>> {
-    check_live_session_at(LIVE_WEBSOCKET_ENDPOINT, keys, boot).await
+    check_live_session_at(live_endpoint(), keys, boot).await
 }
 
 pub(crate) async fn check_live_session_at(
@@ -1751,7 +1766,7 @@ async fn open_live_session_redacted_at(
 }
 
 pub(crate) fn gemini_live_websocket_url(api_key: &str) -> String {
-    live_websocket_url_at(LIVE_WEBSOCKET_ENDPOINT, api_key)
+    live_websocket_url_at(live_endpoint(), api_key)
 }
 
 fn live_websocket_url_at(endpoint: &str, api_key: &str) -> String {
