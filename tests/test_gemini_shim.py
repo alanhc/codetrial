@@ -189,6 +189,16 @@ class ToolTranslationTests(unittest.TestCase):
         )
         self.assertEqual(request["stop"], ["END"])
 
+    def test_json_without_a_schema_is_still_held_to_json(self):
+        request = SHIM.to_chat_request(
+            {
+                "contents": [],
+                "generationConfig": {"responseMimeType": "application/json"},
+            }
+        )
+        self.assertEqual(request["response_format"], {"type": "json_object"})
+        self.assertNotIn("response_format", SHIM.to_chat_request({"contents": []}))
+
     def test_the_seed_passes_through(self):
         request = SHIM.to_chat_request(
             {"contents": [], "generationConfig": {"seed": 71}}

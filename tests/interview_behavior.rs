@@ -1585,9 +1585,7 @@ async fn judge_phases(state: &mut RuntimeState, problem: &'static Problem) -> Ve
         .filter(|model| !model.is_empty())
         .unwrap_or_else(|| codetrial::config::DEFAULT_GEMINI_REPORT_MODEL.to_string());
     let response: Value = reqwest::Client::new()
-        .post(format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        ))
+        .post(codetrial::gemini::gemini_generate_content_url(&model))
         .header("x-goog-api-key", gemini_key())
         .json(&json!({
             "systemInstruction": { "parts": [{ "text": phase_judge_system_instruction() }] },
@@ -1600,13 +1598,14 @@ async fn judge_phases(state: &mut RuntimeState, problem: &'static Problem) -> Ve
         }))
         .send()
         .await
-        .expect("Gemini is reachable")
+        .expect("the report model is reachable")
         .json()
         .await
         .expect("Gemini answers JSON");
     let text = response["candidates"][0]["content"]["parts"][0]["text"]
         .as_str()
         .unwrap_or_else(|| panic!("no judgment: {response}"));
+    println!("judgment: {text}");
     apply_phase_judgment(state, text);
     framework_progress(state)
 }

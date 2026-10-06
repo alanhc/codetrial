@@ -204,18 +204,21 @@ def to_chat_request(body, thinking_off=False):
     if "seed" in config:
         request["seed"] = config["seed"]
     request["max_tokens"] = config.get("maxOutputTokens", DEFAULT_MAX_TOKENS)
-    if (
-        config.get("responseMimeType") == "application/json"
-        and "responseSchema" in config
-    ):
-        request["response_format"] = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "response",
-                "strict": True,
-                "schema": convert_schema(config["responseSchema"]),
-            },
-        }
+    if config.get("responseMimeType") == "application/json":
+        if "responseSchema" in config:
+            request["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "response",
+                    "strict": True,
+                    "schema": convert_schema(config["responseSchema"]),
+                },
+            }
+        else:
+            # Gemini answers bare JSON here, and the phase judge parses it as
+            # it comes. Left free, gemma-4-12b wrapped it in a ```json fence,
+            # and every judgment was thrown away unread.
+            request["response_format"] = {"type": "json_object"}
 
     # The Rust side asks for no thinking because Gemini charges thinking tokens
     # against maxOutputTokens; a reasoning model here does the same, so honour it.
